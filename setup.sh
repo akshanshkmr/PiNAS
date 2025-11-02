@@ -1,0 +1,53 @@
+#!/bin/bash
+set -e
+
+# === Raspberry Pi HomeServer Setup ===
+# This script installs and configures:
+# - Docker
+# - Python & Streamlit (for dashboard)
+# - Apache (reverse proxy)
+# - Home Assistant + Pi-hole containers
+# - Health Dashboard (runs locally)
+# ----------------------------------------
+
+echo "🚀 Starting Raspberry Pi HomeServer setup..."
+
+# --- Update system ---
+sudo apt update && sudo apt upgrade -y
+
+# --- Install dependencies ---
+echo "📦 Installing dependencies..."
+sudo apt install -y curl git python3 python3-pip apache2
+
+# --- Install Docker ---
+if ! command -v docker &> /dev/null; then
+    echo "🐳 Installing Docker..."
+    curl -fsSL https://get.docker.com | sh
+    sudo usermod -aG docker $USER
+fi
+
+# --- Setup Apache ---
+echo "🔧 Setting up Apache..."
+~/homeserver/apache2/setup.sh
+
+# --- Setup dashboard ---
+echo "🐍 Setting up dashboard..."
+~/homeserver/dashboard/setup.sh
+
+# --- Run dashboard as service ---
+echo "🚀 Running dashboard as service..."
+sudo cp ./dashboard/dashboard.service /etc/systemd/system/dashboard.service
+sudo systemctl daemon-reload
+sudo systemctl enable dashboard
+sudo systemctl start dashboard
+echo "✅ Dashboard service created and started."
+
+echo "🎉 Setup complete!"
+echo ""
+echo "You can now access your apps at:"
+echo "  🌐 http://pi.local/      → Health Dashboard"
+echo "  🌐 http://pi.local/ph    → Pi-hole"
+echo "  🌐 http://pi.local/ha    → Home Assistant"
+echo "  🌐 http://pi.local/omv   → OpenMediaVault (Phase 2)"
+echo ""
+echo "🔁 Log out and log back in to use Docker without sudo."

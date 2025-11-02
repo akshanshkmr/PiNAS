@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  pihole:
+    container_name: pihole
+    restart: unless-stopped
+    extends:
+      file: ./addons/pihole/docker-compose.yml
+      service: pihole
+
+  homeassistant:
+    container_name: homeassistant
+    restart: unless-stopped
+    extends:
+      file: ./addons/homeassistant/docker-compose.yml
+      service: homeassistant
+

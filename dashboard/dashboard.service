@@ -1,0 +1,14 @@
+[Unit]
+Description=HomeServer Streamlit Dashboard
+After=network.target
+
+[Service]
+User=akshansh
+WorkingDirectory=/home/akshansh/homeserver/dashboard
+ExecStart=/home/akshansh/homeserver/dashboard/run.sh
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

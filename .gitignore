@@ -21,3 +21,6 @@ docker-data/
 
 # Streamlit cache
 dashboard/.streamlit/
+
+# Docker data
+docker

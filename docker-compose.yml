@@ -1,17 +1,31 @@
-version: "3.9"
-
 services:
-  pihole:
-    container_name: pihole
-    restart: unless-stopped
-    extends:
-      file: ./addons/pihole/docker-compose.yml
-      service: pihole
-
+  # 🏠 Home Assistant
   homeassistant:
     container_name: homeassistant
+    image: ghcr.io/home-assistant/home-assistant:stable
+    network_mode: host
+    privileged: true
     restart: unless-stopped
-    extends:
-      file: ./addons/homeassistant/docker-compose.yml
-      service: homeassistant
+    volumes:
+      - ./docker/homeassistant/config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    ports:
+      - "8123:8123"
+    environment:
+      TZ: 'Asia/Kolkata'
 
+  # 🕳️ Pi-hole
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    restart: unless-stopped
+    volumes:
+      - ./docker/pihole/etc-pihole:/etc/pihole
+      - ./docker/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+    ports:
+      - "8080:80"
+      - "53:53/tcp"
+      - "53:53/udp"
+    environment:
+      TZ: 'Asia/Kolkata'

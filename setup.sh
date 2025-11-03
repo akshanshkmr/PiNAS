@@ -6,7 +6,7 @@ set -e
 # - Docker
 # - Python & Streamlit (for dashboard)
 # - Apache (reverse proxy)
-# - Home Assistant + Pi-hole containers
+# - Pi-hole container
 # - Health Dashboard (runs locally)
 # ----------------------------------------
 
@@ -39,8 +39,8 @@ echo "🐍 Setting up dashboard..."
 echo "🎉 Setup complete!"
 echo ""
 echo "You can now access your apps at:"
-echo "  🌐 http://pi.local/      → Health Dashboard"
-echo "  🌐 http://pi.local/ph    → Pi-hole"
-echo "  🌐 http://pi.local/ha    → Home Assistant"
-echo "  🌐 http://pi.local/omv   → OpenMediaVault (Phase 2)"
+echo "  🌐 http://pi.local         → Home Page"
+echo "  🌐 http://pi.local/status  → Status Dashboard"
+echo "  🌐 http://pi.local/phihole → Pi-hole"
+echo "  🌐 http://pi.local/omv     → OpenMediaVault (Phase 2)"
 echo ""

@@ -14,8 +14,6 @@ fi
 # Install dependencies in the venv
 "$VENV_DIR/bin/pip" install -r $DASHBOARD_DIR/requirements.txt --upgrade
 
-echo "✅ Dashboard environment set up."
-
 # --- Run dashboard as service ---
 echo "🚀 Running dashboard as service..."
 sudo cp ./dashboard/dashboard.service /etc/systemd/system/dashboard.service

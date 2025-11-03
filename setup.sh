@@ -26,15 +26,15 @@ if ! command -v docker &> /dev/null; then
     sudo usermod -aG docker $USER
 fi
 
-docker compose up -d
+sudo docker compose up -d
 
 # --- Setup Apache ---
 echo "🔧 Setting up Apache..."
-~/homeserver/apache2/setup.sh
+apache2/setup.sh
 
 # --- Setup dashboard ---
 echo "🐍 Setting up dashboard..."
-~/homeserver/dashboard/setup.sh
+dashboard/setup.sh
 
 echo "🎉 Setup complete!"
 echo ""

@@ -1,7 +1,6 @@
 # Raspberry Pi HomeServer 🚀
 
-This repo sets up Docker, Apache reverse proxy, Pi-hole, Home Assistant, and a local Streamlit health dashboard on Raspberry Pi.
-
+This repo sets up Docker, Apache reverse proxy, Pi-hole, and a local Streamlit health dashboard on Raspberry Pi.
 
 ## Setup
 
@@ -11,7 +10,7 @@ This repo sets up Docker, Apache reverse proxy, Pi-hole, Home Assistant, and a l
 
 # To Set Pi-hole Password:
 ```sh
-docker exec -it pihole pihole setpassword 'your_new_password'
+sudo docker exec -it pihole pihole setpassword 'your_new_password'
 ```
 
 # To allow iCloudPrivateRelay, set this in ₹/etc/pihole/pihole.toml₹ :

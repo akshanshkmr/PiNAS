@@ -18,6 +18,3 @@ venv/
 *.pid
 *.sock
 docker-data/
-
-# Streamlit cache
-dashboard/.streamlit/

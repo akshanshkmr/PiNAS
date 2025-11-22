@@ -1,23 +1,15 @@
 import streamlit as st
 import psutil
+import socket
 import time
 import os
 from collections import deque
-
 
 # ===============================
 # ⚙️ Streamlit Page Setup
 # ===============================
 st.set_page_config(page_title="Pi Health Dashboard", page_icon="🍓", layout="wide")
 st.title("🍓 Pi Health Dashboard")
-
-# Initialize history for charts
-if "cpu_hist" not in st.session_state:
-    st.session_state.cpu_hist = deque(maxlen=60)
-if "ram_hist" not in st.session_state:
-    st.session_state.ram_hist = deque(maxlen=60)
-if "temp_hist" not in st.session_state:
-    st.session_state.temp_hist = deque(maxlen=60)
 
 
 # ===============================
@@ -32,13 +24,15 @@ class PiStats:
     """Collects system metrics for Raspberry Pi."""
 
     def refresh(self):
-        self.temps = psutil.sensors_temperatures()
         self.cpu = psutil.cpu_percent(interval=None)
         self.ram = psutil.virtual_memory().percent
+        self.cpu_temp = self._get_temp(TempSensors.CPU)
+        self.adc_temp = self._get_temp(TempSensors.ADC)
         self.disk = psutil.disk_usage('/')
         self.net_io = psutil.net_io_counters()
         self.uptime_val = self._uptime()
         self.processes = self._get_top_processes(10)
+        self.ip = self._get_ip()
 
     def _uptime(self):
         seconds = time.time() - psutil.boot_time()
@@ -53,7 +47,7 @@ class PiStats:
 
     def _get_temp(self, name):
         try:
-            return self.temps.get(name, [{}])[0].current
+            return psutil.sensors_temperatures().get(name, [{}])[0].current
         except Exception:
             return 0.0
 
@@ -62,6 +56,14 @@ class PiStats:
         for p in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
             plist.append(p.info)
         return sorted(plist, key=lambda x: x['cpu_percent'], reverse=True)[:n]
+
+    def _get_ip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))   # Google DNS (no traffic actually sent)
+            return s.getsockname()[0]
+        finally:
+            s.close()
 
 
 # ===============================
@@ -74,11 +76,19 @@ def get_color(val, low=30, high=80):
         return "orange"
     return "red"
 
-
-def metric_box(label, val, unit="", max_val=100, color="green"):
-    with st.container(border=True):
-        st.markdown(f":{color}-badge[**{label}**]")
-        st.progress(val / max_val, text=f"{val:.2f} {unit}")
+def metric_chart(label, val, hist, unit="", color="green"):
+    if len(hist) < 2:
+        delta=0
+    else:
+        delta = round(hist[-1] - hist[-2], 2)
+    st.metric(
+        label=f":{color}-badge[**{label}**]",
+        value=f"{val}{unit}",
+        delta=f"{delta}{unit}",
+        delta_color="inverse",
+        chart_data=hist,
+        border=True,
+    )
 
 
 # ===============================
@@ -88,37 +98,41 @@ class PiUI:
     def __init__(self, stats: PiStats):
         self.stats = stats
 
-    def system_tab(self):
-        cpu_temp = self.stats._get_temp(TempSensors.CPU)
-        adc_temp = self.stats._get_temp(TempSensors.ADC)
-        disk_usage = self.stats.disk.percent
-        cols = st.columns(6)
-        with cols[0]: st.metric(":blue-badge[**Uptime**]", self.stats.uptime_val, border=True)
-        with cols[1]: metric_box("CPU Usage", self.stats.cpu, "%", 100, get_color(self.stats.cpu))
-        with cols[2]: metric_box("RAM Usage", self.stats.ram, "%", 100, get_color(self.stats.ram))
-        with cols[3]: metric_box("CPU Temp", cpu_temp, "°C", 100, get_color(cpu_temp))
-        with cols[4]: metric_box("ADC Temp", adc_temp, "°C", 100, get_color(adc_temp))
-        with cols[5]: metric_box("Disk Usage", disk_usage, "%", 100, get_color(disk_usage, 70, 90))
+        # Initialize history for charts
+        if "cpu_hist" not in st.session_state:
+            st.session_state.cpu_hist = deque(maxlen=60)
+        if "ram_hist" not in st.session_state:
+            st.session_state.ram_hist = deque(maxlen=60)
+        if "cpu_temp_hist" not in st.session_state:
+            st.session_state.cpu_temp_hist = deque(maxlen=60)
+        if "adc_temp_hist" not in st.session_state:
+            st.session_state.adc_temp_hist = deque(maxlen=60)
 
-        # Charts
-        st.subheader("📈 Live Metrics")
         st.session_state.cpu_hist.append(self.stats.cpu)
         st.session_state.ram_hist.append(self.stats.ram)
-        st.session_state.temp_hist.append(cpu_temp)
+        st.session_state.cpu_temp_hist.append(self.stats.cpu_temp)
+        st.session_state.adc_temp_hist.append(self.stats.adc_temp)
 
-        chart_cols = st.columns(3)
-        chart_cols[0].line_chart(st.session_state.cpu_hist, y_label="CPU %")
-        chart_cols[1].line_chart(st.session_state.ram_hist, y_label="RAM %")
-        chart_cols[2].line_chart(st.session_state.temp_hist, y_label="Temp °C")
+    def system_tab(self):
+        st.subheader("Live System Metrics")
+        cols = st.columns(5)
+        with cols[0]: st.metric(":blue-badge[**Uptime**]", self.stats.uptime_val, border=True, height="stretch")
+        with cols[1], st.container(border=True, height="stretch"):
+            st.markdown(":blue-badge[**IP Addr**]")
+            st.code(self.stats.ip)
+        with cols[2]: st.metric(":blue-badge[**Packets Sent**]", f"{round(self.stats.net_io.packets_sent/1000)}K", delta=f"{self.stats.net_io.bytes_sent / (1024 ** 2):.2f} MB", border=True)
+        with cols[3]: st.metric(":blue-badge[**Packets Received**]", f"{round(self.stats.net_io.packets_recv/1000)}K", delta=f"{-self.stats.net_io.bytes_recv / (1024 ** 2):.2f} MB", border=True)
+        with cols[4], st.container(border=True, height="stretch"):
+            st.markdown(f":{get_color(self.stats.disk.percent, 70, 90)}-badge[**Disk Usage**]")
+            st.progress(self.stats.disk.percent/100, text=f"{self.stats.disk.percent:.2f} %")
 
-    def network_tab(self):
-        net = self.stats.net_io
-        col1, col2 = st.columns(2)
-        col1.metric(":blue-badge[**Sent**]", f"{net.packets_sent} Packets", delta=f"{net.bytes_sent / (1024 ** 2):.2f} MB", border=True)
-        col2.metric(":blue-badge[**Received**]", f"{net.packets_recv} Packets", delta=f"{-net.bytes_recv / (1024 ** 2):.2f} MB", border=True)
+        cols = st.columns(4)
+        with cols[0]: metric_chart("CPU Usage", self.stats.cpu, st.session_state.cpu_hist, "%", get_color(self.stats.cpu))
+        with cols[1]: metric_chart("RAM Usage", self.stats.ram, st.session_state.ram_hist, "%", get_color(self.stats.ram))
+        with cols[2]: metric_chart("CPU Temp", self.stats.cpu_temp, st.session_state.cpu_temp_hist, "°𝐶", get_color(self.stats.cpu_temp))
+        with cols[3]: metric_chart("ADC Temp", self.stats.adc_temp, st.session_state.adc_temp_hist, "°𝐶", get_color(self.stats.adc_temp))
 
-    def processes_tab(self):
-        st.subheader("🔍 Top Processes by CPU Usage")
+        st.subheader("Top Processes by CPU Usage")
         data = [{"PID": p["pid"], "Name": p["name"], "CPU%": p["cpu_percent"], "RAM%": p["memory_percent"]} for p in self.stats.processes]
         st.dataframe(
             data, 
@@ -153,18 +167,14 @@ class PiUI:
 # ===============================
 # 🚀 Dashboard (Auto Refresh)
 # ===============================
-@st.fragment(run_every="5s")
+@st.fragment(run_every="10s")
 def dashboard():
     stats = PiStats()
     stats.refresh()
     ui = PiUI(stats)
 
-    tabs = st.tabs(["📊 System", "🌐 Network", "🧩 Processes", "⚙️ Controls"])
-
+    tabs = st.tabs(["📊 System", "⚙️ Controls"])
     with tabs[0]: ui.system_tab()
-    with tabs[1]: ui.network_tab()
-    with tabs[2]: ui.processes_tab()
-    with tabs[3]: ui.controls_tab()
-
+    with tabs[1]: ui.controls_tab()
 
 dashboard()

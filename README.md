@@ -10,11 +10,11 @@ If your Pi is connected to a **TP-Link Deco network**, you can:
 1. Open the **Deco app** on your phone.  
 2. Go to **Network → Devices**.  
 3. Look for a host named **`pi`** (or similar).  
-4. Note the IP address shown (e.g., `192.168.68.64`).
+4. Note the IP address shown (e.g., `192.168.68.50`).
 
 You can then SSH into it:
 ```bash
-ssh akshansh@<pi-ip-address>
+ssh akshansh@pi.local
 ```
 
 ---
@@ -32,14 +32,15 @@ If you ever see this error when connecting to your Pi:
 Run this command **on your computer (not on the Pi)** to remove the old SSH fingerprint:
 
 ```bash
-ssh-keygen -R 192.168.68.64
+ssh-keygen -R pi.local
 ```
 
 Then reconnect:
 
 ```bash
-ssh akshansh@192.168.68.64
+ssh akshansh@pi.local
 ```
+
 
 If your Pi has a new IP, replace it accordingly.
 

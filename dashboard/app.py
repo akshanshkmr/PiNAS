@@ -70,6 +70,8 @@ class PiStats:
 # ⚙️ Pi Controller (Reboot / Shutdown / Fan)
 # ===============================
 class PiController:
+    def __init__(self):
+        st.session_state.is_fan_on = self.is_fan_on()
 
     def reboot(self):
         os.system("sudo reboot")
@@ -82,9 +84,11 @@ class PiController:
 
     def fan_on(self):
         os.system(f"sudo pinctrl FAN_PWM op dl")
+        st.session_state.is_fan_on = True
 
     def fan_off(self):
         os.system(f"sudo pinctrl FAN_PWM op dh")
+        st.session_state.is_fan_on = False
 
     def is_fan_on(self):
         """
@@ -129,9 +133,9 @@ def metric_chart(label, val, hist, unit="", color="green"):
 # 🖥️ UI Renderer
 # ===============================
 class PiUI:
-    def __init__(self, stats: PiStats):
+    def __init__(self, stats: PiStats, controller):
         self.stats = stats
-        self.ctrl = PiController()
+        self.ctrl = controller
 
         # History state
         if "cpu_hist" not in st.session_state:
@@ -142,8 +146,6 @@ class PiUI:
             st.session_state.cpu_temp_hist = deque(maxlen=60)
         if "adc_temp_hist" not in st.session_state:
             st.session_state.adc_temp_hist = deque(maxlen=60)
-        if "fan_on" not in st.session_state:
-            st.session_state.fan_on = self.ctrl.is_fan_on()
 
         st.session_state.cpu_hist.append(self.stats.cpu)
         st.session_state.ram_hist.append(self.stats.ram)
@@ -181,13 +183,12 @@ class PiUI:
             use_container_width=True
         )
 
-    @st.fragment
     def controls_tab(self):
         st.subheader("⚙️ System Controls")
         cols = st.columns(4)
         with cols[0]:
             # Fan toggle
-            fan_on = st.toggle("🌀 Fan Power", key=st.session_state.fan_on)
+            fan_on = st.toggle("🌀 Fan Power", value=st.session_state.is_fan_on)
             if fan_on:
                 self.ctrl.fan_on()
             else:
@@ -218,7 +219,8 @@ class PiUI:
 def dashboard():
     stats = PiStats()
     stats.refresh()
-    ui = PiUI(stats)
+    controller = PiController()
+    ui = PiUI(stats, controller)
 
     tabs = st.tabs(["📊 System", "⚙️ Controls"])
     with tabs[0]: ui.system_tab()

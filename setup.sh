@@ -12,6 +12,10 @@ set -e
 
 echo "🚀 Starting Raspberry Pi HomeServer setup..."
 
+# --- Setup Fan ---
+echo "🐍 Setting up fan..."
+fan/setup.sh
+
 # --- Update system ---
 sudo apt update && sudo apt upgrade -y
 

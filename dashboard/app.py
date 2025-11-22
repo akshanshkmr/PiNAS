@@ -60,11 +60,45 @@ class PiStats:
     def _get_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            s.connect(("8.8.8.8", 80))   # Google DNS (no traffic actually sent)
+            s.connect(("8.8.8.8", 80))  # Google DNS (no traffic actually sent)
             return s.getsockname()[0]
         finally:
             s.close()
 
+
+# ===============================
+# ⚙️ Pi Controller (Reboot / Shutdown / Fan)
+# ===============================
+class PiController:
+
+    def reboot(self):
+        os.system("sudo reboot")
+
+    def shutdown(self):
+        os.system("sudo shutdown now")
+
+    def check_updates(self):
+        return os.popen("apt list --upgradable 2>/dev/null | tail -n +2").read()
+
+    def fan_on(self):
+        os.system(f"sudo pinctrl FAN_PWM op dl")
+
+    def fan_off(self):
+        os.system(f"sudo pinctrl FAN_PWM op dh")
+
+    def is_fan_on(self):
+        """
+        Reads the pin state using ONLY `pinctrl FAN_PWM` and os.popen().
+        Expected outputs:
+            "op dl pd | lo" → ON
+            "op dh pd | hi" → OFF
+        """
+        out = os.popen("pinctrl FAN_PWM").read().lower()
+
+        if "dl" in out or " lo" in out:
+            return True     # fan ON
+        elif "dh" in out or " hi" in out:
+            return False    # fan OFF
 
 # ===============================
 # 🎨 Helpers
@@ -78,7 +112,7 @@ def get_color(val, low=30, high=80):
 
 def metric_chart(label, val, hist, unit="", color="green"):
     if len(hist) < 2:
-        delta=0
+        delta = 0
     else:
         delta = round(hist[-1] - hist[-2], 2)
     st.metric(
@@ -97,8 +131,9 @@ def metric_chart(label, val, hist, unit="", color="green"):
 class PiUI:
     def __init__(self, stats: PiStats):
         self.stats = stats
+        self.ctrl = PiController()
 
-        # Initialize history for charts
+        # History state
         if "cpu_hist" not in st.session_state:
             st.session_state.cpu_hist = deque(maxlen=60)
         if "ram_hist" not in st.session_state:
@@ -107,11 +142,14 @@ class PiUI:
             st.session_state.cpu_temp_hist = deque(maxlen=60)
         if "adc_temp_hist" not in st.session_state:
             st.session_state.adc_temp_hist = deque(maxlen=60)
+        if "fan_on" not in st.session_state:
+            st.session_state.fan_on = self.ctrl.is_fan_on()
 
         st.session_state.cpu_hist.append(self.stats.cpu)
         st.session_state.ram_hist.append(self.stats.ram)
         st.session_state.cpu_temp_hist.append(self.stats.cpu_temp)
         st.session_state.adc_temp_hist.append(self.stats.adc_temp)
+
 
     def system_tab(self):
         st.subheader("Live System Metrics")
@@ -135,7 +173,7 @@ class PiUI:
         st.subheader("Top Processes by CPU Usage")
         data = [{"PID": p["pid"], "Name": p["name"], "CPU%": p["cpu_percent"], "RAM%": p["memory_percent"]} for p in self.stats.processes]
         st.dataframe(
-            data, 
+            data,
             column_config={
                 "CPU%": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
                 "RAM%": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100)
@@ -143,25 +181,34 @@ class PiUI:
             use_container_width=True
         )
 
+    @st.fragment
     def controls_tab(self):
         st.subheader("⚙️ System Controls")
-        col1, col2, col3 = st.columns(3)
+        cols = st.columns(4)
+        with cols[0]:
+            # Fan toggle
+            fan_on = st.toggle("🌀 Fan Power", key=st.session_state.fan_on)
+            if fan_on:
+                self.ctrl.fan_on()
+            else:
+                self.ctrl.fan_off()
 
-        with col1:
+        with cols[1]:
             if st.button("Reboot Pi", icon="🔄"):
                 st.warning("Rebooting...")
-                os.system("sudo reboot")
+                self.ctrl.reboot()
 
-        with col2:
+        with cols[2]:
             if st.button("Shutdown Pi", icon="🔌"):
                 st.error("Shutting down...")
-                os.system("sudo shutdown now")
+                self.ctrl.shutdown()
 
-        with col3:
+        with cols[3]:
             if st.button("Check Updates", icon="🧩"):
                 with st.status("Fetching updates..."):
-                    updates = os.popen("apt list --upgradable 2>/dev/null | tail -n +2").read()
+                    updates = self.ctrl.check_updates()
                     st.code(updates if updates else "✅ System is up-to-date")
+
 
 
 # ===============================

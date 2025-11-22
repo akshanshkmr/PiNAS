@@ -1,0 +1,11 @@
+[Unit]
+Description=Fan Always On (active-low via pinctrl)
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/pinctrl FAN_PWM op dl
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

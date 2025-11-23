@@ -11,3 +11,6 @@ services:
     environment:
       TZ: 'Asia/Kolkata'
       FTLCONF_webserver_port: 8080
+  # Plex
+  plex:
+  

@@ -1,7 +1,11 @@
 # --- Setup Python environment for dashboard ---
 echo "🐍 Setting up Python virtual environment for dashboard..."
-
 sudo apt install -y python3-venv
+
+# --- Setup Samba for NAS ---
+echo "Setting up Samba for NAS..."
+sudo apt install -y samba samba-common smbclient
+sudo chmod 777 /etc/samba/smb.conf # DANGEROUS - RE THINK!
 
 DASHBOARD_DIR=~/homeserver/dashboard
 VENV_DIR=$DASHBOARD_DIR/venv

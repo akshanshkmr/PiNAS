@@ -1,7 +1,7 @@
 import psutil
 import socket
 import time
-import os, json
+import os, json, shlex
 from pathlib import Path
 from textwrap import dedent
 import configparser
@@ -58,9 +58,6 @@ class PiStats:
             s.close()
 
 class PiController:
-    def __init__(self):
-        st.session_state.is_fan_on = self.is_fan_on()
-
     def reboot(self):
         os.system("sudo reboot")
 
@@ -72,11 +69,13 @@ class PiController:
 
     def fan_on(self):
         os.system(f"sudo pinctrl FAN_PWM op dl")
-        st.session_state.is_fan_on = True
 
     def fan_off(self):
         os.system(f"sudo pinctrl FAN_PWM op dh")
-        st.session_state.is_fan_on = False
+
+    def set_fan_state(self, running:bool):
+        pin_state = "dl" if running else "dh"
+        os.system(f"sudo pinctrl FAN_PWM op {pin_state}")
 
     def is_fan_on(self):
         """
@@ -110,7 +109,11 @@ class PiNAS:
     def _load_samba_shares(self):
         if self.smb_shares_store.exists():
             try:
-                return json.loads(self.smb_shares_store.read_text())
+                shares = json.loads(self.smb_shares_store.read_text())
+                for share in shares:
+                    share.setdefault("allow_guest", False)
+                    share.setdefault("read_only", False)
+                return shares
             except:
                 return []
         return []
@@ -141,6 +144,12 @@ class PiNAS:
     def raid_status(self):
         return self.run("cat", "/proc/mdstat") + self.run("mdadm", "--detail", "--scan")
 
+    def detect_arrays(self):
+        return self.run("mdadm", "--detail", "--scan")
+
+    def restore_detected_arrays(self):
+        return self.run("mdadm", "--assemble", "--scan")
+
     def create_raid(self, disks, level="1", md="/dev/md0"):
         for d in disks:
             self.run("wipefs", "-a", d)
@@ -155,6 +164,10 @@ class PiNAS:
     def rebuild_progress(self):
         return self.run("grep", "recovery", "/proc/mdstat")
 
+    def resync_array(self, md="/dev/md0", action="repair"):
+        md_name = Path(md).name
+        return self.run("bash", "-c", f'echo {action} | sudo tee /sys/block/{md_name}/md/sync_action')
+
     # -------------------- Dynamic SMB Management --------------------
     def generate_samba_conf(self):
         config = configparser.ConfigParser()
@@ -164,9 +177,6 @@ class PiNAS:
             "server string": "PiNAS",
             "map to guest": "Bad User",
             "dns proxy": "no",
-            "log file": "/var/log/samba/log",
-            "max log size": "1000",
-            "logging": "file",
             "server min protocol": "SMB2",
             "server max protocol": "SMB3",
         }
@@ -175,8 +185,8 @@ class PiNAS:
             config[s["name"]] = {
                 "path": s["path"],
                 "browseable": "yes",
-                "read only": str(s.get("allow_guest")).lower(),
-                "guest ok": str(s.get("allow_guest")).lower(),
+                "read only": "yes" if s.get("read_only") else "no",
+                "guest ok": "yes" if s.get("allow_guest") else "no",
                 "create mask": "0775",
                 "directory mask": "0775",
             }
@@ -186,28 +196,55 @@ class PiNAS:
         with open(self.smb_conf) as f:
             return "".join(f.readlines())
 
-    def add_samba_share(self, name, path="/mnt/nas", allow_guest=False):
-        self.smb_shares.append(
-            {
-                "name": name, 
-                "path": path, 
-                "allow_guest": allow_guest
-            }
-        )
+    def show_samba_share_status(self):
+        st.code(self.run("smbclient", "-L", "localhost", "-N"))
+
+    def _apply_samba_changes(self):
         self._save_samba_shares()
         conf = self.generate_samba_conf()
         self.samba_restart()
         return conf
 
+    def add_samba_share(self, name, path="/mnt/nas", allow_guest=False, read_only=False):
+        self.smb_shares = [s for s in self.smb_shares if s["name"] != name]
+        self.smb_shares.append(
+            {
+                "name": name,
+                "path": path,
+                "allow_guest": allow_guest,
+                "read_only": read_only,
+            }
+        )
+        return self._apply_samba_changes()
+
+    def configure_samba_shares(self, shares):
+        self.smb_shares = shares
+        return self._apply_samba_changes()
+
     def remove_samba_share(self, name):
         self.smb_shares = [s for s in self.smb_shares if s['name'] != name]
-        self._save_samba_shares()
-        conf = self.generate_samba_conf()
-        self.samba_restart()
-        return conf
+        return self._apply_samba_changes()
 
     def samba_restart(self):
         return self.run("sudo", "systemctl", "restart", "smbd")
 
-    def list_samba_shares(self):
-        return self.smb_shares
+    def add_samba_user(self, username, password):
+        if not (username and password):
+            return "Username and password required"
+        safe_pass = shlex.quote(password)
+        safe_user = shlex.quote(username)
+        cmd = (
+            f"printf '%s\\n%s\\n' {safe_pass} {safe_pass} | "
+            f"sudo smbpasswd -s -a {safe_user}"
+        )
+        os.system(cmd)
+        return "Samba User added successfully"
+
+    def disable_samba_user(self, username):
+        if not username:
+            return "Username required"
+        safe_user = shlex.quote(username)
+        exit_code = os.system(f"sudo smbpasswd -d {safe_user}")
+        if exit_code == 0:
+            return f"Samba user '{username}' disabled."
+        return f"Failed to disable Samba user '{username}'."

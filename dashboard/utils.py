@@ -67,29 +67,6 @@ class PiController:
     def check_updates(self):
         return os.popen("apt list --upgradable 2>/dev/null | tail -n +2").read()
 
-    def fan_on(self):
-        os.system(f"sudo pinctrl FAN_PWM op dl")
-
-    def fan_off(self):
-        os.system(f"sudo pinctrl FAN_PWM op dh")
-
-    def set_fan_state(self, running:bool):
-        pin_state = "dl" if running else "dh"
-        os.system(f"sudo pinctrl FAN_PWM op {pin_state}")
-
-    def is_fan_on(self):
-        """
-        Reads the pin state using ONLY `pinctrl FAN_PWM` and os.popen().
-        Expected outputs:
-            "op dl pd | lo" → ON
-            "op dh pd | hi" → OFF
-        """
-        out = os.popen("pinctrl FAN_PWM").read().lower()
-
-        if "dl" in out or " lo" in out:
-            return True     # fan ON
-        elif "dh" in out or " hi" in out:
-            return False    # fan OFF
 
 class PiNAS:
     def __init__(self):

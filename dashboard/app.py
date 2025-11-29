@@ -177,25 +177,19 @@ class PiUI:
     def controls_tab(self):
         """Render system controls tab."""
         st.subheader("⚙️ System Controls")
-        cols = st.columns(4)
+        cols = st.columns(3)
         
         with cols[0]:
-            if st.toggle("🌀 Fan Power", value=self.controller.is_fan_on()):
-                self.controller.fan_on() 
-            else:
-                self.controller.fan_off()
-        
-        with cols[1]:
             if st.button("Reboot Pi", icon="🔄"):
                 st.warning("Rebooting...")
                 self.controller.reboot()
         
-        with cols[2]:
+        with cols[1]:
             if st.button("Shutdown Pi", icon="🔌"):
                 st.error("Shutting down...")
                 self.controller.shutdown()
         
-        with cols[3]:
+        with cols[2]:
             if st.button("Check Updates", icon="🧩"):
                 with st.status("Fetching updates..."):
                     updates = self.controller.check_updates()

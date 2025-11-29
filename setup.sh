@@ -12,10 +12,6 @@ set -e
 
 echo "🚀 Starting Raspberry Pi HomeServer setup..."
 
-# --- Setup Fan ---
-echo "🐍 Setting up fan..."
-fan/setup.sh
-
 # --- Update system ---
 sudo apt update && sudo apt upgrade -y
 
@@ -40,11 +36,14 @@ apache2/setup.sh
 echo "🐍 Setting up dashboard..."
 dashboard/setup.sh
 
+# --- Setup Pironman ---
+echo "🐍 Setting up Pironman..."
+pironman/setup.sh
+
 echo "🎉 Setup complete!"
 echo ""
 echo "You can now access your apps at:"
 echo "  🌐 http://pi.local         → Home Page"
 echo "  🌐 http://pi.local/status  → Status Dashboard"
 echo "  🌐 http://pi.local/phihole → Pi-hole"
-echo "  🌐 http://pi.local/omv     → OpenMediaVault (Phase 2)"
 echo ""

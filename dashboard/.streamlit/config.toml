@@ -2,6 +2,67 @@
 address = "localhost"
 port = 8501
 baseUrlPath = "/status"
+enableStaticServing = true
 
 [browser]
 gatherUsageStats = false
+
+[client]
+showSidebarNavigation = true
+
+[[theme.fontFaces]]
+family = "SpaceGrotesk"
+url = "app/static/SpaceGrotesk-VariableFont_wght.ttf"
+
+[[theme.fontFaces]]
+family = "SpaceMono"
+url = "app/static/SpaceMono-Bold.ttf"
+style = "normal"
+weight = 700
+
+[[theme.fontFaces]]
+family = "SpaceMono"
+url = "app/static/SpaceMono-BoldItalic.ttf"
+style = "italic"
+weight = 700
+
+[[theme.fontFaces]]
+family = "SpaceMono"
+url = "app/static/SpaceMono-Italic.ttf"
+style = "italic"
+weight = 400
+
+[[theme.fontFaces]]
+family = "SpaceMono"
+url = "app/static/SpaceMono-Regular.ttf"
+style = "normal"
+weight = 400
+
+[theme]
+base = "dark"
+primaryColor = "#60a5fa"
+backgroundColor = "#0b1220"
+secondaryBackgroundColor = "#111a2e"
+textColor = "#e2e8f0"
+linkColor = "#93c5fd"
+borderColor = "#25324a"
+dataframeHeaderBackgroundColor = "#111a2e"
+showWidgetBorder = true
+baseRadius = "0.25rem"
+buttonRadius = "0.25rem"
+font = "SpaceGrotesk"
+baseFontSize = 16
+headingFontWeights = [600,500,500,500,500,500]
+headingFontSizes = ["2.5rem", "1.5rem"]
+codeFont = "SpaceMono"
+codeFontSize = ".75rem"
+codeBackgroundColor = "#0f172a"
+showSidebarBorder = true
+chartCategoricalColors = ["#60a5fa", "#34d399", "#fbbf24", "#f472b6", "#a78bfa"]
+
+[theme.sidebar]
+backgroundColor = "#0f172a"
+secondaryBackgroundColor = "#111a2e"
+headingFontSizes = ["1.6rem", "1.4rem", "1.2rem"]
+dataframeHeaderBackgroundColor = "#111a2e"
+

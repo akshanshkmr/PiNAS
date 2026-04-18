@@ -1,11 +1,10 @@
 import psutil
 import socket
 import time
-import os, json, shlex
+import os, json
+import subprocess
 from pathlib import Path
-from textwrap import dedent
 import configparser
-import streamlit as st
 
 class TempSensors:
     CPU = "cpu_thermal"
@@ -58,14 +57,106 @@ class PiStats:
             s.close()
 
 class PiController:
+    @staticmethod
+    def _result(ok, message, details=None):
+        return ok, message, details or {}
+
     def reboot(self):
-        os.system("sudo reboot")
+        proc = subprocess.run(["sudo", "reboot"], capture_output=True, text=True, check=False)
+        if proc.returncode != 0:
+            return self._result(False, "Failed to trigger reboot.", {"stderr": (proc.stderr or "").strip()})
+        return self._result(True, "Reboot command issued.")
 
     def shutdown(self):
-        os.system("sudo shutdown now")
+        proc = subprocess.run(["sudo", "shutdown", "now"], capture_output=True, text=True, check=False)
+        if proc.returncode != 0:
+            return self._result(False, "Failed to trigger shutdown.", {"stderr": (proc.stderr or "").strip()})
+        return self._result(True, "Shutdown command issued.")
 
     def check_updates(self):
-        return os.popen("apt list --upgradable 2>/dev/null | tail -n +2").read()
+        proc = subprocess.run(
+            ["apt", "list", "--upgradable"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            err = (proc.stderr or "").strip() or "unknown error"
+            return self._result(False, "Failed to check updates.", {"stderr": err})
+        lines = proc.stdout.splitlines()
+        payload = "\n".join(lines[1:]).strip()
+        return self._result(True, payload or "System is up-to-date.")
+    
+    def get_pironman5_config(self):
+        """Get current pironman5 configuration."""
+        try:
+            output = subprocess.run(
+                ["sudo", "pironman5", "-c"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if output.returncode != 0:
+                return {"error": (output.stderr or "").strip() or "failed to read pironman5 config"}
+            return json.loads(output.stdout or "{}")
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def restart_pironman5_service(self):
+        """Restart pironman5 service to apply changes."""
+        proc = subprocess.run(
+            ["sudo", "systemctl", "restart", "pironman5.service"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return self._result(False, "Failed to restart pironman5 service.", {"stderr": (proc.stderr or "").strip()})
+        return self._result(True, "Pironman5 service restarted.")
+    
+    def apply_pironman5_config(self, config_dict):
+        """Apply all pironman5 settings from a config dictionary using a single command."""
+        # Build a single command with all flags
+        cmd_parts = ["sudo", "pironman5"]
+        
+        if "rgb_enable" in config_dict:
+            value = "True" if config_dict["rgb_enable"] else "False"
+            cmd_parts.extend(["-re", value])
+        if "rgb_color" in config_dict:
+            cmd_parts.extend(["-rc", str(config_dict["rgb_color"])])
+        if "rgb_brightness" in config_dict:
+            cmd_parts.extend(["-rb", str(config_dict["rgb_brightness"])])
+        if "rgb_style" in config_dict:
+            cmd_parts.extend(["-rs", str(config_dict["rgb_style"])])
+        if "rgb_speed" in config_dict:
+            cmd_parts.extend(["-rp", str(config_dict["rgb_speed"])])
+        if "rgb_led_count" in config_dict:
+            cmd_parts.extend(["-rl", str(config_dict["rgb_led_count"])])
+        if "gpio_fan_mode" in config_dict:
+            cmd_parts.extend(["-gm", str(config_dict["gpio_fan_mode"])])
+        if "oled_enable" in config_dict:
+            value = "True" if config_dict["oled_enable"] else "False"
+            cmd_parts.extend(["-oe", value])
+        if "oled_rotation" in config_dict:
+            cmd_parts.extend(["-or", str(config_dict["oled_rotation"])])
+        if "oled_disk" in config_dict:
+            cmd_parts.extend(["-od", str(config_dict["oled_disk"])])
+        if "oled_network_interface" in config_dict:
+            cmd_parts.extend(["-oi", str(config_dict["oled_network_interface"])])
+        if "oled_sleep_timeout" in config_dict:
+            cmd_parts.extend(["-os", str(config_dict["oled_sleep_timeout"])])
+        
+        # Execute single command with all settings
+        if len(cmd_parts) > 2:  # More than just "sudo pironman5"
+            proc = subprocess.run(cmd_parts, capture_output=True, text=True, check=False)
+            if proc.returncode != 0:
+                return self._result(False, "Failed to apply pironman5 config.", {"stderr": (proc.stderr or "").strip()})
+
+        # Restart service
+        ok, msg, details = self.restart_pironman5_service()
+        if not ok:
+            return self._result(False, msg, details)
+        return self._result(True, "Configuration applied and service restarted.")
 
 
 class PiNAS:
@@ -76,12 +167,20 @@ class PiNAS:
         self.smb_shares = self._load_samba_shares()
 
     # -------------------- Internal helpers --------------------
+    @staticmethod
+    def _result(ok, message, details=None):
+        return ok, message, details or {}
+
     def run(self, *cmd):
-        full = " ".join(cmd)
         try:
-            return os.popen(full).read()
+            proc = subprocess.run(list(cmd), capture_output=True, text=True, check=False)
+            out = (proc.stdout or "").strip()
+            err = (proc.stderr or "").strip()
+            if proc.returncode != 0:
+                return self._result(False, f"{' '.join(cmd)} failed.", {"stderr": err, "exit_code": proc.returncode})
+            return self._result(True, out)
         except Exception as e:
-            return str(e)
+            return self._result(False, "Command execution failed.", {"stderr": str(e)})
 
     def _load_samba_shares(self):
         if self.smb_shares_store.exists():
@@ -103,8 +202,13 @@ class PiNAS:
 
     # -------------------- Disk Discovery --------------------
     def list_disks(self):
-        output = self.run("lsblk", "-J", "-o", "NAME,MODEL,SIZE,TYPE,MOUNTPOINT")
-        return json.loads(output)["blockdevices"]
+        ok, output, _ = self.run("lsblk", "-J", "-o", "NAME,MODEL,SIZE,TYPE,MOUNTPOINT")
+        if not ok:
+            return []
+        try:
+            return json.loads(output).get("blockdevices", [])
+        except Exception:
+            return []
 
     def get_available_disks(self):
         filtered = []
@@ -119,7 +223,11 @@ class PiNAS:
 
     # -------------------- RAID Management --------------------
     def raid_status(self):
-        return self.run("cat", "/proc/mdstat") + self.run("mdadm", "--detail", "--scan")
+        ok1, mdstat, d1 = self.run("cat", "/proc/mdstat")
+        ok2, scan, d2 = self.run("mdadm", "--detail", "--scan")
+        if not ok1 and not ok2:
+            return self._result(False, "Failed to read RAID status.", {"stderr": f"{d1.get('stderr', '')}\n{d2.get('stderr', '')}".strip()})
+        return self._result(True, f"{mdstat}\n{scan}".strip())
 
     def detect_arrays(self):
         return self.run("mdadm", "--detail", "--scan")
@@ -129,21 +237,63 @@ class PiNAS:
 
     def create_raid(self, disks, level="1", md="/dev/md0"):
         for d in disks:
-            self.run("wipefs", "-a", d)
-        self.run("mdadm", "--create", md, "--level", level,
-                  f"--raid-devices={len(disks)}", *disks, "--force", "--run")
-        self.run("mkfs.ext4", "-F", md)
-        self.run("mkdir", "-p", "/mnt/nas")
-        self.run("mount", md, "/mnt/nas")
-        self.run("bash", "-c", "mdadm --detail --scan >> /etc/mdadm/mdadm.conf")
-        return f"RAID created at {md}"
+            ok, _, details = self.run("wipefs", "-a", d)
+            if not ok:
+                return self._result(False, f"Failed wiping filesystem signatures on {d}.", details)
+        ok, _, details = self.run(
+            "mdadm",
+            "--create",
+            md,
+            "--level",
+            level,
+            f"--raid-devices={len(disks)}",
+            *disks,
+            "--force",
+            "--run",
+        )
+        if not ok:
+            return self._result(False, "Failed creating RAID array.", details)
+        ok, _, details = self.run("mkfs.ext4", "-F", md)
+        if not ok:
+            return self._result(False, f"Failed formatting {md}.", details)
+        ok, _, details = self.run("mkdir", "-p", "/mnt/nas")
+        if not ok:
+            return self._result(False, "Failed preparing /mnt/nas mountpoint.", details)
+        ok, _, details = self.run("mount", md, "/mnt/nas")
+        if not ok:
+            return self._result(False, f"Failed mounting {md} to /mnt/nas.", details)
+        ok, scan, details = self.run("mdadm", "--detail", "--scan")
+        if not ok:
+            return self._result(False, "Failed scanning mdadm arrays.", details)
+        try:
+            with open("/etc/mdadm/mdadm.conf", "a", encoding="utf-8") as fh:
+                fh.write(scan + "\n")
+        except Exception as e:
+            return self._result(False, "Failed writing mdadm config.", {"stderr": str(e)})
+        return self._result(True, f"RAID created at {md}.")
 
     def rebuild_progress(self):
-        return self.run("grep", "recovery", "/proc/mdstat")
+        ok, msg, details = self.run("grep", "recovery", "/proc/mdstat")
+        if not ok:
+            return self._result(True, "Idle")
+        return self._result(True, msg or "Idle", details)
 
     def resync_array(self, md="/dev/md0", action="repair"):
         md_name = Path(md).name
-        return self.run("bash", "-c", f'echo {action} | sudo tee /sys/block/{md_name}/md/sync_action')
+        try:
+            proc = subprocess.run(
+                ["sudo", "tee", f"/sys/block/{md_name}/md/sync_action"],
+                input=f"{action}\n",
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc.returncode != 0:
+                err = (proc.stderr or "").strip() or "unknown error"
+                return self._result(False, "Failed to set RAID sync action.", {"stderr": err})
+            return self._result(True, (proc.stdout or "").strip() or f"Requested '{action}' on /dev/{md_name}")
+        except Exception as e:
+            return self._result(False, "Failed to issue RAID sync command.", {"stderr": str(e)})
 
     # -------------------- Dynamic SMB Management --------------------
     def generate_samba_conf(self):
@@ -174,13 +324,15 @@ class PiNAS:
             return "".join(f.readlines())
 
     def show_samba_share_status(self):
-        st.code(self.run("smbclient", "-L", "localhost", "-N"))
+        return self.run("smbclient", "-L", "localhost", "-N")
 
     def _apply_samba_changes(self):
         self._save_samba_shares()
         conf = self.generate_samba_conf()
-        self.samba_restart()
-        return conf
+        ok, msg, details = self.samba_restart()
+        if not ok:
+            return self._result(False, "Saved share config but failed to restart Samba.", details)
+        return self._result(True, "Shares updated and Samba restarted.", {"config": conf})
 
     def add_samba_share(self, name, path="/mnt/nas", allow_guest=False, read_only=False):
         self.smb_shares = [s for s in self.smb_shares if s["name"] != name]
@@ -205,23 +357,31 @@ class PiNAS:
     def samba_restart(self):
         return self.run("sudo", "systemctl", "restart", "smbd")
 
+    def samba_service_status(self):
+        return self.run("systemctl", "is-active", "smbd")
+
     def add_samba_user(self, username, password):
         if not (username and password):
-            return "Username and password required"
-        safe_pass = shlex.quote(password)
-        safe_user = shlex.quote(username)
-        cmd = (
-            f"printf '%s\\n%s\\n' {safe_pass} {safe_pass} | "
-            f"sudo smbpasswd -s -a {safe_user}"
-        )
-        os.system(cmd)
-        return "Samba User added successfully"
+            return self._result(False, "Username and password required.")
+        try:
+            proc = subprocess.run(
+                ["sudo", "smbpasswd", "-s", "-a", username],
+                input=f"{password}\n{password}\n",
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc.returncode != 0:
+                err = (proc.stderr or "").strip() or "unknown error"
+                return self._result(False, "Failed to add Samba user.", {"stderr": err})
+            return self._result(True, "Samba user added successfully.")
+        except Exception as e:
+            return self._result(False, "Failed to add Samba user.", {"stderr": str(e)})
 
     def disable_samba_user(self, username):
         if not username:
-            return "Username required"
-        safe_user = shlex.quote(username)
-        exit_code = os.system(f"sudo smbpasswd -d {safe_user}")
-        if exit_code == 0:
-            return f"Samba user '{username}' disabled."
-        return f"Failed to disable Samba user '{username}'."
+            return self._result(False, "Username required.")
+        proc = subprocess.run(["sudo", "smbpasswd", "-d", username], capture_output=True, text=True, check=False)
+        if proc.returncode == 0:
+            return self._result(True, f"Samba user '{username}' disabled.")
+        return self._result(False, f"Failed to disable Samba user '{username}'.", {"stderr": (proc.stderr or "").strip()})

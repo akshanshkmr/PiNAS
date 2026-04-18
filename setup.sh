@@ -17,7 +17,7 @@ sudo apt update && sudo apt upgrade -y
 
 # --- Install dependencies ---
 echo "📦 Installing dependencies..."
-sudo apt install -y curl git python3 python3-pip apache2
+sudo apt install -y curl git python3 apache2
 
 # --- Setup Docker ---
 if ! command -v docker &> /dev/null; then

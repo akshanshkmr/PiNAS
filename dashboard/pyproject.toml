@@ -1,0 +1,10 @@
+[project]
+name = "homeserver-dashboard"
+version = "0.1.0"
+description = "Streamlit dashboard for Raspberry Pi homeserver administration"
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit",
+    "psutil",
+    "python-pam",
+]

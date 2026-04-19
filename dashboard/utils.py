@@ -1,7 +1,7 @@
 import psutil
 import socket
 import time
-import os, json
+import json
 import subprocess
 from pathlib import Path
 import configparser
@@ -38,7 +38,10 @@ class PiStats:
 
     def _get_temp(self, name):
         try:
-            return psutil.sensors_temperatures().get(name, [{}])[0].current
+            readings = psutil.sensors_temperatures().get(name, [])
+            if readings and hasattr(readings[0], "current"):
+                return readings[0].current
+            return 0.0
         except Exception:
             return 0.0
 
@@ -50,9 +53,12 @@ class PiStats:
 
     def _get_ip(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
         try:
-            s.connect(("8.8.8.8", 80))  # Google DNS (no traffic actually sent)
+            s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
+        except OSError:
+            return "N/A"
         finally:
             s.close()
 
@@ -86,7 +92,7 @@ class PiController:
         lines = proc.stdout.splitlines()
         payload = "\n".join(lines[1:]).strip()
         return self._result(True, payload or "System is up-to-date.")
-    
+
     def get_pironman5_config(self):
         """Get current pironman5 configuration."""
         try:
@@ -101,7 +107,7 @@ class PiController:
             return json.loads(output.stdout or "{}")
         except Exception as e:
             return {"error": str(e)}
-    
+
     def restart_pironman5_service(self):
         """Restart pironman5 service to apply changes."""
         proc = subprocess.run(
@@ -113,12 +119,12 @@ class PiController:
         if proc.returncode != 0:
             return self._result(False, "Failed to restart pironman5 service.", {"stderr": (proc.stderr or "").strip()})
         return self._result(True, "Pironman5 service restarted.")
-    
+
     def apply_pironman5_config(self, config_dict):
         """Apply all pironman5 settings from a config dictionary using a single command."""
         # Build a single command with all flags
         cmd_parts = ["sudo", "pironman5"]
-        
+
         if "rgb_enable" in config_dict:
             value = "True" if config_dict["rgb_enable"] else "False"
             cmd_parts.extend(["-re", value])
@@ -145,9 +151,9 @@ class PiController:
             cmd_parts.extend(["-oi", str(config_dict["oled_network_interface"])])
         if "oled_sleep_timeout" in config_dict:
             cmd_parts.extend(["-os", str(config_dict["oled_sleep_timeout"])])
-        
+
         # Execute single command with all settings
-        if len(cmd_parts) > 2:  # More than just "sudo pironman5"
+        if len(cmd_parts) > 2: # More than just "sudo pironman5"
             proc = subprocess.run(cmd_parts, capture_output=True, text=True, check=False)
             if proc.returncode != 0:
                 return self._result(False, "Failed to apply pironman5 config.", {"stderr": (proc.stderr or "").strip()})
@@ -190,14 +196,14 @@ class PiNAS:
                     share.setdefault("allow_guest", False)
                     share.setdefault("read_only", False)
                 return shares
-            except:
+            except (json.JSONDecodeError, OSError):
                 return []
         return []
 
     def _save_samba_shares(self):
         try:
             self.smb_shares_store.write_text(json.dumps(self.smb_shares, indent=2))
-        except:
+        except OSError:
             pass
 
     # -------------------- Disk Discovery --------------------
@@ -213,9 +219,10 @@ class PiNAS:
     def get_available_disks(self):
         filtered = []
         for d in self.list_disks():
-            if d.get("type") == "disk" and not d["name"].startswith("mmcblk0"):
+            name = d.get("name") or ""
+            if d.get("type") == "disk" and not name.startswith("mmcblk0"):
                 filtered.append({
-                    "device": f"/dev/{d['name']}",
+                    "device": f"/dev/{name}",
                     "model": d.get("model", "Unknown"),
                     "size": d.get("size", "?")
                 })
@@ -224,24 +231,24 @@ class PiNAS:
     # -------------------- RAID Management --------------------
     def raid_status(self):
         ok1, mdstat, d1 = self.run("cat", "/proc/mdstat")
-        ok2, scan, d2 = self.run("mdadm", "--detail", "--scan")
+        ok2, scan, d2 = self.run("sudo", "mdadm", "--detail", "--scan")
         if not ok1 and not ok2:
             return self._result(False, "Failed to read RAID status.", {"stderr": f"{d1.get('stderr', '')}\n{d2.get('stderr', '')}".strip()})
         return self._result(True, f"{mdstat}\n{scan}".strip())
 
     def detect_arrays(self):
-        return self.run("mdadm", "--detail", "--scan")
+        return self.run("sudo", "mdadm", "--detail", "--scan")
 
     def restore_detected_arrays(self):
-        return self.run("mdadm", "--assemble", "--scan")
+        return self.run("sudo", "mdadm", "--assemble", "--scan")
 
     def create_raid(self, disks, level="1", md="/dev/md0"):
         for d in disks:
-            ok, _, details = self.run("wipefs", "-a", d)
+            ok, _, details = self.run("sudo", "wipefs", "-a", d)
             if not ok:
                 return self._result(False, f"Failed wiping filesystem signatures on {d}.", details)
         ok, _, details = self.run(
-            "mdadm",
+            "sudo", "mdadm",
             "--create",
             md,
             "--level",
@@ -253,16 +260,16 @@ class PiNAS:
         )
         if not ok:
             return self._result(False, "Failed creating RAID array.", details)
-        ok, _, details = self.run("mkfs.ext4", "-F", md)
+        ok, _, details = self.run("sudo", "mkfs.ext4", "-F", md)
         if not ok:
             return self._result(False, f"Failed formatting {md}.", details)
-        ok, _, details = self.run("mkdir", "-p", "/mnt/nas")
+        ok, _, details = self.run("sudo", "mkdir", "-p", "/mnt/nas")
         if not ok:
             return self._result(False, "Failed preparing /mnt/nas mountpoint.", details)
-        ok, _, details = self.run("mount", md, "/mnt/nas")
+        ok, _, details = self.run("sudo", "mount", md, "/mnt/nas")
         if not ok:
             return self._result(False, f"Failed mounting {md} to /mnt/nas.", details)
-        ok, scan, details = self.run("mdadm", "--detail", "--scan")
+        ok, scan, details = self.run("sudo", "mdadm", "--detail", "--scan")
         if not ok:
             return self._result(False, "Failed scanning mdadm arrays.", details)
         try:

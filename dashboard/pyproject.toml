@@ -7,4 +7,6 @@ dependencies = [
     "streamlit",
     "psutil",
     "python-pam",
+    "streamlit_cookies_controller",
+    "black"
 ]

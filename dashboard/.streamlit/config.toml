@@ -9,6 +9,7 @@ gatherUsageStats = false
 
 [client]
 showSidebarNavigation = true
+toolbarMode = "developer"
 
 [[theme.fontFaces]]
 family = "SpaceGrotesk"

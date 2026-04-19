@@ -32,6 +32,10 @@ sudo docker compose up -d
 echo "🔧 Setting up Apache..."
 apache2/setup.sh
 
+# --- Setup fan ---
+echo "🔧 Setting up fan..."
+fan/setup.sh
+
 # --- Setup dashboard ---
 echo "🐍 Setting up dashboard..."
 dashboard/setup.sh
@@ -43,7 +47,5 @@ pironman/setup.sh
 echo "🎉 Setup complete!"
 echo ""
 echo "You can now access your apps at:"
-echo "  🌐 http://pi.local         → Home Page"
-echo "  🌐 http://pi.local/status  → Status Dashboard"
-echo "  🌐 http://pi.local/phihole → Pi-hole"
-echo ""
+echo "  🌐 http://pi.local"
+echo "  🌐 ssh akshansh@pi.local"

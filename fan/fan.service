@@ -1,0 +1,16 @@
+[Unit]
+Description=Always ON Fan
+After=network.target
+
+[Service]
+User=akshansh
+WorkingDirectory=/home/akshansh/homeserver/fan
+ExecStart=/home/akshansh/homeserver/fan/run.sh
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=HOME=/home/akshansh
+Environment=PATH=/home/akshansh/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+[Install]
+WantedBy=multi-user.target

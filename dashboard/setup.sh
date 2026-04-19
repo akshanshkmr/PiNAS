@@ -1,6 +1,3 @@
-# --- Startup CPU FAN ---
-sudo pinctrl FAN_PWM op dl
-
 # --- Setup Samba for NAS ---
 echo "Setting up Samba for NAS..."
 sudo apt install -y mdadm samba samba-common smbclient

@@ -103,7 +103,7 @@ def render_controls_tab():
 
     with section_tabs[2]:
         # Two-column layout
-        main_cols = st.columns([3, 1])
+        main_cols = st.columns([2, 1])
         
         # Left Column: RGB & OLED Settings
         with main_cols[0].container(border=True, height="stretch"):

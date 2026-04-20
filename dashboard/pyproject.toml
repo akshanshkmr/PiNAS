@@ -8,5 +8,6 @@ dependencies = [
     "psutil",
     "python-pam",
     "streamlit_cookies_controller",
-    "black"
+    "black",
+    "humanize",
 ]

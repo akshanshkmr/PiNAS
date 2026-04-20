@@ -1,7 +1,7 @@
 import streamlit as st
 from ui import UIComponents, MetricHistory
 from utils import PiStats
-
+import humanize
 
 def render_system_tab():
     """Render system metrics tab with fresh stats."""
@@ -44,20 +44,23 @@ def render_system_tab():
     st.subheader("Network")
     network_cols = st.columns(3)
     with network_cols[0], st.container(border=True, height="stretch"):
-        st.markdown("IP Address")
+        st.markdown("Local IP")
         st.code(stats.ip)
     with network_cols[1]:
         st.metric(
             "Packets Sent",
-            f"{round(stats.net_io.packets_sent/1000)}K",
-            delta=f"{stats.net_io.bytes_sent / (1024 ** 2):.2f} MB",
+            humanize.intword(stats.net_io.packets_sent),
+            delta=humanize.naturalsize(stats.net_io.bytes_sent),
             border=True,
+            delta_color="violet",
         )
     with network_cols[2]:
         st.metric(
             "Packets Received",
-            f"{round(stats.net_io.packets_recv/1000)}K",
-            delta=f"{stats.net_io.bytes_recv / (1024 ** 2):.2f} MB",
+            humanize.intword(stats.net_io.packets_recv),
+            delta=humanize.naturalsize(stats.net_io.bytes_recv),
+            delta_arrow="down",
+            delta_color="violet",
             border=True,
         )
 

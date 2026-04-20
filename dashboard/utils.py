@@ -5,6 +5,9 @@ import json
 import subprocess
 from pathlib import Path
 import configparser
+import humanize
+import datetime
+
 
 class TempSensors:
     CPU = "cpu_thermal"
@@ -27,14 +30,7 @@ class PiStats:
 
     def _uptime(self):
         seconds = time.time() - psutil.boot_time()
-        days = int(seconds // 86400)
-        hours = int((seconds % 86400) // 3600)
-        minutes = int((seconds % 3600) // 60)
-        parts = []
-        if days: parts.append(f"{days}d")
-        if hours: parts.append(f"{hours}h")
-        if minutes or not parts: parts.append(f"{minutes}m")
-        return " ".join(parts)
+        return humanize.naturaldelta(datetime.timedelta(seconds=seconds))   
 
     def _get_temp(self, name):
         try:

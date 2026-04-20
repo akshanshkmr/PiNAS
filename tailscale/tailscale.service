@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 User=akshansh
-WorkingDirectory=/home/akshansh/homeserver/fan
-ExecStart=/home/akshansh/homeserver/fan/run.sh
+WorkingDirectory=/home/akshansh/homeserver/tailscale
+ExecStart=/home/akshansh/homeserver/tailscale/run.sh
 Restart=always
 RestartSec=5
 

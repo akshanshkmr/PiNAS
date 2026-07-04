@@ -1,146 +1,107 @@
-# 🧠 Raspberry Pi Homeserver Setup Guide
+# 🧠 Raspberry Pi Homeserver
 
-This repo sets up Docker, Apache reverse proxy, Pi-hole, and a local Streamlit health dashboard on Raspberry Pi.
----
+Turns a Raspberry Pi (in a Pironman 5 case) into a homeserver with:
 
-## 🌐 1. Find Your Raspberry Pi IP Address
+- **Admin dashboard** — React + FastAPI app at `http://pi.local/status`
+  - **System** — live CPU, RAM, temperature, disk, network, and processes,
+    streamed over Server-Sent Events (updates every 2s)
+  - **Storage** — RAID create/assemble/mount/repair, Samba shares and users,
+    and per-drive SMART health
+  - **Services** — start/stop/restart systemd units with live log tailing, and
+    a Tailscale panel (status, devices, copy-ready remote URLs)
+  - **Terminal** — a full bash login shell in the browser (xterm.js over a
+    WebSocket-backed PTY), running as your Linux user
+  - **Controls** — reboot/shutdown, check *and apply* apt updates, Pironman
+    RGB/OLED/case-fan settings, and CPU fan
+- **Apache** — reverse proxy on port 80 (HTTP, SSE, and WebSocket)
+- **Tailscale** — remote access over your tailnet (HTTPS + SMB)
 
-If your Pi is connected to a **TP-Link Deco network**, you can:
+The UI is a dark instrument-panel design that works down to mobile.
 
-1. Open the **Deco app** on your phone.  
-2. Go to **Network → Devices**.  
-3. Look for a host named **`pi`** (or similar).  
-4. Note the IP address shown (e.g., `192.168.68.50`).
+## Layout
 
-You can then SSH into it:
+```
+setup.sh               ← one script that installs/updates everything
+apache2/               ← reverse proxy config
+dashboard/
+  backend/             ← FastAPI app (PAM auth, system/NAS/services/controls API)
+  frontend/            ← React + Vite SPA
+```
+
+## Install
+
+On a fresh Raspberry Pi OS install:
+
 ```bash
-ssh akshansh@pi.local
+sudo apt update && sudo apt install -y git
+git clone https://github.com/akshanshkmr/homeserver.git
+cd homeserver
+./setup.sh
 ```
 
----
+`setup.sh` is idempotent — re-run it after every `git pull` to rebuild the
+frontend, sync backend dependencies, and restart services.
 
-## 🧩 2. Reset SSH Key Warning (Host Identification Changed)
+The dashboard signs you in with your **Linux user and password** (PAM). The
+service account needs passwordless sudo (default on Raspberry Pi OS) for
+RAID/Samba/power/systemctl/SMART operations. Note that the Terminal tab and
+passwordless sudo together give the same power as an SSH login — keep the
+dashboard on the LAN or your tailnet, not the public internet.
 
-If you ever see this error when connecting to your Pi:
+## Dashboard development
 
+Backend (serves API + built frontend on port 8501):
+
+```bash
+cd dashboard/backend
+uv run uvicorn app.main:app --reload --port 8501
 ```
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
-@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+Frontend dev server with hot reload (proxies API calls to :8501):
+
+```bash
+cd dashboard/frontend
+npm install
+npm run dev
 ```
 
-Run this command **on your computer (not on the Pi)** to remove the old SSH fingerprint:
+## Services
+
+| Service     | What it does                              |
+| ----------- | ----------------------------------------- |
+| `dashboard` | FastAPI backend + SPA on `127.0.0.1:8501` |
+| `fan`       | Turns the CPU fan on at boot (one-shot)   |
+| `apache2`   | Reverse proxy on port 80                  |
+
+These are managed from the dashboard's **Services** tab, or with
+`journalctl -u dashboard -f`.
+
+## Tailscale
+
+`setup.sh` installs Tailscale. First-time connection is interactive:
+
+```bash
+sudo tailscale up --ssh --advertise-routes=192.168.1.0/24
+sudo tailscale serve --bg http://localhost:80
+```
+
+Once connected, the dashboard's **Services** tab shows the tailnet status,
+connected devices, and the ready-to-copy remote URLs:
+
+- Dashboard over HTTPS: `https://<node>.<tailnet>.ts.net/status/`
+- NAS over SMB: `smb://<node>.<tailnet>.ts.net/<share>`
+
+The trailing slash on the dashboard URL matters — it hits the app directly
+instead of an Apache redirect. Apache also rewrites the bare-domain redirect
+based on the `Host` header so the tailnet URL stays on `https://`.
+
+## Troubleshooting
+
+**SSH host key warning** after reflashing the Pi — on your computer:
 
 ```bash
 ssh-keygen -R pi.local
 ```
 
-Then reconnect:
-
-```bash
-ssh akshansh@pi.local
-```
-
-
-If your Pi has a new IP, replace it accordingly.
-
----
-
-## ⚙️ 3. Install Git
-
-On your Raspberry Pi:
-
-```bash
-sudo apt update
-sudo apt install git -y
-```
-
-Check installation:
-```bash
-git --version
-```
-
-Configure your identity:
-```bash
-git config --global user.name "Akshansh"
-git config --global user.email "akshanshkmr821@gmail.com"
-```
-
----
-
-## 🧩 4. Install GitHub CLI and Login
-
-GitHub CLI makes login simple — you can log in through your browser.
-
-### Install GitHub CLI
-```bash
-sudo apt install gh -y
-```
-
-### Log in to GitHub
-```bash
-gh auth login
-```
-
-Then follow the prompts:
-
-- Choose **GitHub.com**  
-- Choose **HTTPS** for Git operations  
-- Select **“Login with a web browser”**  
-- Copy the code it shows  
-- Visit [https://github.com/login/device](https://github.com/login/device)  
-- Paste the code and authorize the login  
-
-✅ Once done, your Pi is now linked to your GitHub account.
-
-You can verify with:
-```bash
-gh auth status
-```
-
----
-
-## 📦 5. Clone This Repository
-
-Once authenticated, you can clone this repository easily:
-
-```bash
-git clone https://github.com/akshanshkmr/homeserver.git
-```
-
----
-
-## ⚙️ 6. Run The Setup
-
-Once authenticated, you can clone this repository easily:
-
-```bash
-./setup.sh
-```
-
----
-
-## 🕳️ 7. PiHole Setup
-
-Once authenticated, you can clone this repository easily:
-
-To Set Pi-hole Password:
-```sh
-sudo docker exec -it pihole pihole setpassword 'your_new_password'
-```
-
-To allow iCloudPrivateRelay, set this in `/etc/pihole/pihole.toml` :
-```toml
-    # Should Pi-hole always reply with NXDOMAIN to A and AAAA queries of mask.icloud.com
-    # and mask-h2.icloud.com to disable Apple's iCloud Private Relay to prevent Apple
-    # devices from bypassing Pi-hole?
-    #
-    # This follows the recommendation on
-    # https://developer.apple.com/support/prepare-your-network-for-icloud-private-relay
-    #
-    # Allowed values are:
-    #     true or false
-    iCloudPrivateRelay = false ### CHANGED, default = true
-```
-
----
+**Find the Pi's IP** — in the TP-Link Deco app: Network → Devices → `pi`,
+or `ping pi.local`.

@@ -1,0 +1,13 @@
+[project]
+name = "homeserver-dashboard"
+version = "1.0.0"
+description = "FastAPI backend for the Raspberry Pi homeserver admin dashboard"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "psutil",
+    "python-pam",
+    "six",  # undeclared runtime dependency of python-pam
+    "humanize",
+]

@@ -21,3 +21,9 @@ venv/
 docker-data/
 
 *secret
+# Node / frontend build
+node_modules/
+dashboard/frontend/dist/
+
+# Dashboard runtime state (session secret, share config)
+dashboard/backend/data/

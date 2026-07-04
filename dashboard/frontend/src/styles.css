@@ -1386,6 +1386,249 @@ input[type='range'] {
 }
 
 /* ============================================================
+   Files
+   ============================================================ */
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.crumb-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.crumb {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: 400 13px var(--font-mono);
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 2px;
+}
+
+.crumb:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.crumb-sep {
+  color: var(--faint);
+}
+
+.crumb-up {
+  margin-left: 8px;
+}
+
+.files-table td {
+  padding: 6px 10px;
+}
+
+.file-name {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--ink);
+  font: 400 13px var(--font-mono);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 4px 0;
+  width: 100%;
+}
+
+.file-name:hover {
+  color: var(--accent);
+}
+
+.file-dir {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.file-glyph {
+  width: 16px;
+  text-align: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.glyph-dir { color: var(--accent); }
+.glyph-image { color: var(--ok); }
+.glyph-video { color: var(--violet); }
+.glyph-audio { color: var(--warn); }
+
+.file-date {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.file-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.icon-btn {
+  appearance: none;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 6px;
+  text-decoration: none;
+  display: inline-flex;
+}
+
+.icon-btn:hover {
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.icon-btn.danger:hover {
+  color: var(--crit);
+  border-color: var(--crit);
+}
+
+/* preview modal */
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: color-mix(in srgb, #000 74%, transparent);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  animation: fade-in 0.15s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+.preview-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  max-width: min(1000px, 94vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-name {
+  font-size: 13px;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.preview-count {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.preview-body {
+  position: relative;
+  padding: 16px;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+}
+
+.preview-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 42px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  color: var(--ink);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: border-color 0.14s ease, color 0.14s ease;
+}
+
+.preview-nav:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.preview-nav.prev { left: 10px; }
+.preview-nav.next { right: 10px; }
+
+.preview-volume {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, #000 70%, transparent);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 6px 14px;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.preview-hint {
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.preview-media {
+  max-width: 100%;
+  max-height: 74vh;
+  border-radius: 2px;
+  display: block;
+}
+
+.preview-audio {
+  width: min(520px, 80vw);
+}
+
+.preview-text {
+  width: 100%;
+  max-height: 74vh;
+  margin: 0;
+  text-align: left;
+}
+
+/* ============================================================
    Terminal
    ============================================================ */
 

@@ -9,5 +9,6 @@ dependencies = [
     "psutil",
     "python-pam",
     "six",  # undeclared runtime dependency of python-pam
+    "python-multipart",  # form parsing for file uploads
     "humanize",
 ]

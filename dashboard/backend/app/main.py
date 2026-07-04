@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routers import auth, controls, nas, services, system, terminal
+from .routers import auth, controls, files, nas, services, system, terminal
 from .services.monitor import monitor
 
 BASE_PATH = "/status"
@@ -27,7 +27,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Pi Admin Dashboard", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
-for router in (auth.router, system.router, controls.router, nas.router, services.router, terminal.router):
+for router in (
+    auth.router,
+    system.router,
+    controls.router,
+    nas.router,
+    files.router,
+    services.router,
+    terminal.router,
+):
     app.include_router(router, prefix=f"{BASE_PATH}/api")
 
 

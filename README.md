@@ -7,6 +7,9 @@ Turns a Raspberry Pi (in a Pironman 5 case) into a homeserver with:
     streamed over Server-Sent Events (updates every 2s)
   - **Storage** — RAID create/assemble/mount/repair, Samba shares and users,
     and per-drive SMART health
+  - **Files** — browse the NAS, upload and download files, and preview photos,
+    video, audio, and text in the browser, with a keyboard-driven media viewer
+    (← → between items, space play/pause, ↑ ↓ volume, esc close)
   - **Services** — start/stop/restart systemd units with live log tailing, and
     a Tailscale panel (status, devices, copy-ready remote URLs)
   - **Terminal** — a full bash login shell in the browser (xterm.js over a
@@ -47,6 +50,12 @@ service account needs passwordless sudo (default on Raspberry Pi OS) for
 RAID/Samba/power/systemctl/SMART operations. Note that the Terminal tab and
 passwordless sudo together give the same power as an SSH login — keep the
 dashboard on the LAN or your tailnet, not the public internet.
+
+The **Files** tab browses your Samba share paths, mounted array mountpoints,
+and `/mnt/nas` — every request is sandboxed to those roots (no `..` or symlink
+escapes). Uploads and deletes run as the dashboard's Linux user, so that user
+needs write access to the folder. Media serving supports HTTP range requests,
+so video scrubs and seeks in the preview player.
 
 ## Dashboard development
 

@@ -5,6 +5,7 @@ import { SegMeter, severity } from './components/ui'
 import Login from './components/Login'
 import SystemTab from './components/SystemTab'
 import NasTab from './components/NasTab'
+import FilesTab from './components/FilesTab'
 import ServicesTab from './components/ServicesTab'
 import TerminalTab from './components/TerminalTab'
 import ControlsTab from './components/ControlsTab'
@@ -12,6 +13,7 @@ import ControlsTab from './components/ControlsTab'
 const TABS = [
   { id: 'system', label: 'System', glyph: '▚', component: SystemTab },
   { id: 'nas', label: 'Storage', glyph: '▛', component: NasTab },
+  { id: 'files', label: 'Files', glyph: '▤', component: FilesTab },
   { id: 'services', label: 'Services', glyph: '◉', component: ServicesTab },
   { id: 'terminal', label: 'Terminal', glyph: '▮', component: TerminalTab },
   { id: 'controls', label: 'Controls', glyph: '◈', component: ControlsTab },

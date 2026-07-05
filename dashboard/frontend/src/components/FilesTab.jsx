@@ -38,14 +38,20 @@ function fmtDate(mtime) {
   })
 }
 
+const SLIDE_MS = 4000 // per-image dwell time in slideshow mode
+
 function Preview({ items, initialIndex, onClose }) {
   const [index, setIndex] = useState(initialIndex)
   const [text, setText] = useState(null)
   const [error, setError] = useState('')
   const [volPct, setVolPct] = useState(null) // brief on-screen volume readout
+  const [slideshow, setSlideshow] = useState(false)
+  const [isFull, setIsFull] = useState(false)
   const mediaRef = useRef(null)
+  const boxRef = useRef(null)
   const volumeRef = useRef(1)
   const volTimer = useRef(null)
+  const slideTimer = useRef(null)
 
   const item = items[index]
   const many = items.length > 1
@@ -65,6 +71,11 @@ function Preview({ items, initialIndex, onClose }) {
     volTimer.current = setTimeout(() => setVolPct(null), 900)
   }, [])
 
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) boxRef.current?.requestFullscreen?.()
+    else document.exitFullscreen?.()
+  }, [])
+
   // load text for text previews; reset per item
   useEffect(() => {
     setText(null)
@@ -81,11 +92,27 @@ function Preview({ items, initialIndex, onClose }) {
     if (mediaRef.current) mediaRef.current.volume = volumeRef.current
   }, [index])
 
+  // keep the fullscreen flag in sync (Esc/UI can exit it out from under us)
+  useEffect(() => {
+    const onFs = () => setIsFull(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
+  // slideshow: images/audio advance on a timer; videos advance when they end
+  useEffect(() => {
+    clearTimeout(slideTimer.current)
+    if (!slideshow || !many || item.kind === 'video') return
+    slideTimer.current = setTimeout(() => go(1), SLIDE_MS)
+    return () => clearTimeout(slideTimer.current)
+  }, [slideshow, index, item, many, go])
+
   useEffect(() => {
     function onKey(e) {
       switch (e.key) {
         case 'Escape':
-          onClose()
+          // let the browser exit fullscreen first; only close when windowed
+          if (!document.fullscreenElement) onClose()
           break
         case 'ArrowRight':
           if (many) {
@@ -117,23 +144,36 @@ function Preview({ items, initialIndex, onClose }) {
             setVolume(mediaRef.current.volume - 0.1)
           }
           break
+        case 'f':
+        case 'F':
+          e.preventDefault()
+          toggleFullscreen()
+          break
         default:
           break
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [go, isPlayable, many, onClose, setVolume])
+  }, [go, isPlayable, many, onClose, setVolume, toggleFullscreen])
 
   return (
     <div className="preview-overlay" onClick={onClose}>
-      <div className="preview-box" onClick={(e) => e.stopPropagation()}>
+      <div className="preview-box" ref={boxRef} onClick={(e) => e.stopPropagation()}>
         <header className="preview-head">
           <span className="mono preview-name">
             {item.name}
             {many && <span className="preview-count"> · {index + 1} / {items.length}</span>}
           </span>
           <div className="btn-row" style={{ marginTop: 0 }}>
+            {many && (
+              <Btn variant={slideshow ? 'primary' : 'default'} onClick={() => setSlideshow((s) => !s)}>
+                {slideshow ? '❚❚ Stop' : '▶ Slideshow'}
+              </Btn>
+            )}
+            <Btn onClick={toggleFullscreen} title="Fullscreen (f)">
+              {isFull ? '⤢ Exit' : '⛶ Fullscreen'}
+            </Btn>
             <a className="btn" href={DOWNLOAD(item.path)}>
               Download
             </a>
@@ -152,10 +192,26 @@ function Preview({ items, initialIndex, onClose }) {
 
           {item.kind === 'image' && <img src={RAW(item.path)} alt={item.name} className="preview-media" />}
           {item.kind === 'video' && (
-            <video key={item.path} ref={mediaRef} src={RAW(item.path)} className="preview-media" controls autoPlay />
+            <video
+              key={item.path}
+              ref={mediaRef}
+              src={RAW(item.path)}
+              className="preview-media"
+              controls
+              autoPlay
+              onEnded={() => slideshow && many && go(1)}
+            />
           )}
           {item.kind === 'audio' && (
-            <audio key={item.path} ref={mediaRef} src={RAW(item.path)} controls autoPlay className="preview-audio" />
+            <audio
+              key={item.path}
+              ref={mediaRef}
+              src={RAW(item.path)}
+              controls
+              autoPlay
+              className="preview-audio"
+              onEnded={() => slideshow && many && go(1)}
+            />
           )}
           {item.kind === 'text' &&
             (error ? (
@@ -173,12 +229,18 @@ function Preview({ items, initialIndex, onClose }) {
           )}
 
           {volPct !== null && <div className="preview-volume mono">Volume {volPct}%</div>}
+
+          {slideshow && item.kind !== 'video' && (
+            <div className="slide-progress">
+              <div key={index} className="slide-progress-fill" style={{ animationDuration: `${SLIDE_MS}ms` }} />
+            </div>
+          )}
         </div>
 
         <footer className="preview-hint mono">
           {many && '← → switch · '}
           {isPlayable && 'space play/pause · ↑ ↓ volume · '}
-          esc close
+          f fullscreen · esc close
         </footer>
       </div>
     </div>

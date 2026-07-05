@@ -52,6 +52,14 @@ cd homeserver
 frontend, sync backend dependencies, and restart services. Then open
 **http://pi.local/status** and sign in with your Linux account.
 
+Hardware-specific steps (Pironman case, CPU fan) never abort the run — they warn
+and continue. Two optional env vars:
+
+```bash
+SETUP_ENABLE_NOPASSWD_SUDO=1 ./setup.sh   # add the NOPASSWD sudoers rule if your user lacks it
+SETUP_FULL_UPGRADE=1 ./setup.sh           # also run a full `apt upgrade` (slow; off by default)
+```
+
 ## Project layout
 
 ```text

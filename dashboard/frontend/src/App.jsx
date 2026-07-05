@@ -11,13 +11,77 @@ import TerminalTab from './components/TerminalTab'
 import ControlsTab from './components/ControlsTab'
 
 const TABS = [
-  { id: 'system', label: 'System', glyph: '▚', component: SystemTab },
-  { id: 'nas', label: 'Storage', glyph: '▛', component: NasTab },
-  { id: 'files', label: 'Files', glyph: '▤', component: FilesTab },
-  { id: 'services', label: 'Services', glyph: '◉', component: ServicesTab },
-  { id: 'terminal', label: 'Terminal', glyph: '▮', component: TerminalTab },
-  { id: 'controls', label: 'Controls', glyph: '◈', component: ControlsTab },
+  { id: 'system', label: 'System', component: SystemTab },
+  { id: 'nas', label: 'Storage', component: NasTab },
+  { id: 'files', label: 'Files', component: FilesTab },
+  { id: 'services', label: 'Services', component: ServicesTab },
+  { id: 'terminal', label: 'Terminal', component: TerminalTab },
+  { id: 'controls', label: 'Controls', component: ControlsTab },
 ]
+
+function TabIcon({ id }) {
+  const p = {
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.5,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  }
+  switch (id) {
+    case 'system': // activity / telemetry pulse
+      return (
+        <svg {...p}>
+          <polyline points="1 9 4.5 9 6.5 3.5 9.5 12.5 11.5 8 15 8" />
+        </svg>
+      )
+    case 'nas': // stacked disks
+      return (
+        <svg {...p}>
+          <ellipse cx="8" cy="3.8" rx="5.2" ry="2" />
+          <path d="M2.8 3.8v8.4c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2V3.8" />
+          <path d="M2.8 8c0 1.1 2.3 2 5.2 2s5.2-.9 5.2-2" />
+        </svg>
+      )
+    case 'files': // folder
+      return (
+        <svg {...p}>
+          <path d="M1.8 4.3a1 1 0 0 1 1-1h3.1l1.4 1.5h6.4a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z" />
+        </svg>
+      )
+    case 'services': // stacked servers with status LEDs
+      return (
+        <svg {...p}>
+          <rect x="2" y="2.6" width="12" height="4.6" rx="1" />
+          <rect x="2" y="8.8" width="12" height="4.6" rx="1" />
+          <line x1="4.4" y1="4.9" x2="4.5" y2="4.9" />
+          <line x1="4.4" y1="11.1" x2="4.5" y2="11.1" />
+        </svg>
+      )
+    case 'terminal': // prompt
+      return (
+        <svg {...p}>
+          <rect x="1.6" y="2.6" width="12.8" height="10.8" rx="1.6" />
+          <polyline points="4.4 6.2 6.6 8 4.4 9.8" />
+          <line x1="8" y1="10.2" x2="11.2" y2="10.2" />
+        </svg>
+      )
+    case 'controls': // equalizer sliders
+      return (
+        <svg {...p}>
+          <line x1="4" y1="2.5" x2="4" y2="13.5" />
+          <line x1="8" y1="2.5" x2="8" y2="13.5" />
+          <line x1="12" y1="2.5" x2="12" y2="13.5" />
+          <circle cx="4" cy="5.4" r="1.7" fill="currentColor" stroke="none" />
+          <circle cx="8" cy="9.8" r="1.7" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="6.6" r="1.7" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    default:
+      return null
+  }
+}
 
 function greeting() {
   const h = new Date().getHours()
@@ -54,7 +118,7 @@ function Sidebar({ user, tab, setTab, online, onLogout }) {
             onClick={() => setTab(t.id)}
           >
             <span className="navitem-glyph" aria-hidden="true">
-              {t.glyph}
+              <TabIcon id={t.id} />
             </span>
             {t.label}
           </button>

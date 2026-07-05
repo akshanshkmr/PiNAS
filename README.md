@@ -1,37 +1,43 @@
-# 🧠 Raspberry Pi Homeserver
+<div align="center">
 
-Turns a Raspberry Pi (in a Pironman 5 case) into a homeserver with:
+# 🖥️ Pi Admin
 
-- **Admin dashboard** — React + FastAPI app at `http://pi.local/status`
-  - **System** — live CPU, RAM, temperature, disk, network, and processes,
-    streamed over Server-Sent Events (updates every 2s)
-  - **Storage** — RAID create/assemble/mount/repair, Samba shares and users,
-    and per-drive SMART health
-  - **Files** — browse the NAS, upload and download files, and preview photos,
-    video, audio, and text in the browser, with a keyboard-driven media viewer
-    (← → between items, space play/pause, ↑ ↓ volume, esc close)
-  - **Services** — start/stop/restart systemd units with live log tailing, and
-    a Tailscale panel (status, devices, copy-ready remote URLs)
-  - **Terminal** — a full bash login shell in the browser (xterm.js over a
-    WebSocket-backed PTY), running as your Linux user
-  - **Controls** — reboot/shutdown, check *and apply* apt updates, Pironman
-    RGB/OLED/case-fan settings, and CPU fan
-- **Apache** — reverse proxy on port 80 (HTTP, SSE, and WebSocket)
-- **Tailscale** — remote access over your tailnet (HTTPS + SMB)
+**A self-hosted admin dashboard + NAS for a Raspberry Pi in a Pironman 5 case.**
 
-The UI is a dark instrument-panel design that works down to mobile.
+Live telemetry, RAID & Samba, a file explorer, an in-browser terminal, and case
+controls — behind one clean instrument-panel UI.
 
-## Layout
+![Raspberry Pi](https://img.shields.io/badge/Raspberry_Pi-5-A22846?style=flat-square&logo=raspberrypi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?style=flat-square&logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-60A5FA?style=flat-square&logo=react&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-build-646CFF?style=flat-square&logo=vite&logoColor=white)
+![Tailscale](https://img.shields.io/badge/Tailscale-remote_access-242424?style=flat-square&logo=tailscale&logoColor=white)
 
-```
-setup.sh               ← one script that installs/updates everything
-apache2/               ← reverse proxy config
-dashboard/
-  backend/             ← FastAPI app (PAM auth, system/NAS/services/controls API)
-  frontend/            ← React + Vite SPA
-```
+</div>
 
-## Install
+<p align="center">
+  <img src="docs/dashboard.png" alt="Pi Admin dashboard — System tab" width="920">
+</p>
+
+---
+
+## What's inside
+
+| Tab | What it does |
+| --- | --- |
+| **System** | Live CPU, RAM, temperature, disk, network and processes, streamed over Server-Sent Events (every 2s) |
+| **Storage** | RAID create / assemble / mount / repair, Samba shares & users, and per-drive **SMART** health |
+| **Files** | Browse the NAS; upload, download (files *and* folders as a streamed `.zip`), preview photos / video / audio / text; sort columns and filter by name |
+| **Services** | Start / stop / restart systemd units with live `journalctl` tailing, plus a **Tailscale** panel (status, devices, copy-ready URLs) |
+| **Terminal** | A real bash login shell in the browser — xterm.js over a WebSocket-backed PTY |
+| **Controls** | Reboot / shutdown, check *and apply* apt updates, Pironman RGB / OLED / case-fan, and the CPU fan |
+
+Fronted by **Apache** (HTTP + SSE + WebSocket) and reachable over **Tailscale**
+(HTTPS + SMB). The UI is a dark instrument-panel design that scales down to
+mobile. The **Files** media viewer is keyboard-driven — `← →` between items,
+`space` play/pause, `↑ ↓` volume, `esc` to close.
+
+## Quick start
 
 On a fresh Raspberry Pi OS install:
 
@@ -42,39 +48,35 @@ cd homeserver
 ./setup.sh
 ```
 
-`setup.sh` is idempotent — re-run it after every `git pull` to rebuild the
-frontend, sync backend dependencies, and restart services.
+`setup.sh` is **idempotent** — re-run it after every `git pull` to rebuild the
+frontend, sync backend dependencies, and restart services. Then open
+**http://pi.local/status** and sign in with your Linux account.
 
-The dashboard signs you in with your **Linux user and password** (PAM). The
-service account needs passwordless sudo (default on Raspberry Pi OS) for
-RAID/Samba/power/systemctl/SMART operations. Note that the Terminal tab and
-passwordless sudo together give the same power as an SSH login — keep the
-dashboard on the LAN or your tailnet, not the public internet.
+## Project layout
 
-The **Files** tab browses your Samba share paths, mounted array mountpoints,
-and `/mnt/nas` — every request is sandboxed to those roots (no `..` or symlink
-escapes). Uploads and deletes run as the dashboard's Linux user, so that user
-needs write access to the folder. Media serving supports HTTP range requests,
-so video scrubs and seeks in the preview player.
-
-## Dashboard development
-
-Backend (serves API + built frontend on port 8501):
-
-```bash
-cd dashboard/backend
-uv run uvicorn app.main:app --reload --port 8501
+```text
+setup.sh               ← one script that installs / updates everything
+apache2/               ← reverse-proxy config
+dashboard/
+  backend/             ← FastAPI app (PAM auth; system / storage / files /
+  │                       services / terminal / controls APIs)
+  frontend/            ← React + Vite SPA (dark instrument-panel UI)
 ```
 
-Frontend dev server with hot reload (proxies API calls to :8501):
+## Development
 
 ```bash
+# backend — serves the API + built frontend on :8501
+cd dashboard/backend
+uv run uvicorn app.main:app --reload --port 8501
+
+# frontend — hot-reload dev server, proxies API calls to :8501
 cd dashboard/frontend
 npm install
 npm run dev
 ```
 
-## Services
+## Managed services
 
 | Service     | What it does                              |
 | ----------- | ----------------------------------------- |
@@ -82,35 +84,45 @@ npm run dev
 | `fan`       | Turns the CPU fan on at boot (one-shot)   |
 | `apache2`   | Reverse proxy on port 80                  |
 
-These are managed from the dashboard's **Services** tab, or with
-`journalctl -u dashboard -f`.
+Manage them from the **Services** tab, or with `journalctl -u dashboard -f`.
 
-## Tailscale
+## Remote access (Tailscale)
 
-`setup.sh` installs Tailscale. First-time connection is interactive:
+`setup.sh` installs Tailscale; the first connection is interactive:
 
 ```bash
 sudo tailscale up --ssh --advertise-routes=192.168.1.0/24
 sudo tailscale serve --bg http://localhost:80
 ```
 
-Once connected, the dashboard's **Services** tab shows the tailnet status,
-connected devices, and the ready-to-copy remote URLs:
+Once connected, the **Services** tab shows tailnet status, connected devices,
+and ready-to-copy URLs:
 
-- Dashboard over HTTPS: `https://<node>.<tailnet>.ts.net/status/`
-- NAS over SMB: `smb://<node>.<tailnet>.ts.net/<share>`
+- **Dashboard (HTTPS):** `https://<node>.<tailnet>.ts.net/status/`
+- **NAS (SMB):** `smb://<node>.<tailnet>.ts.net/<share>`
 
-The trailing slash on the dashboard URL matters — it hits the app directly
-instead of an Apache redirect. Apache also rewrites the bare-domain redirect
-based on the `Host` header so the tailnet URL stays on `https://`.
+> The trailing slash on the dashboard URL matters — it hits the app directly
+> instead of an Apache redirect. Apache branches the bare-domain redirect on the
+> `Host` header so the tailnet URL stays on `https://`.
+
+## Security notes
+
+- Sign-in uses your **Linux user + password** (PAM). The service account needs
+  passwordless sudo (default on Raspberry Pi OS) for RAID / Samba / power /
+  systemctl / SMART actions.
+- The **Terminal** tab plus passwordless sudo is equivalent to an SSH login —
+  keep the dashboard on your **LAN or tailnet**, never the public internet.
+- The **Files** API is sandboxed to your Samba share paths, mounted array
+  mountpoints, and `/mnt/nas`; every path is resolved and checked so `..` and
+  symlink escapes are rejected. Uploads / deletes run as the dashboard user.
 
 ## Troubleshooting
 
-**SSH host key warning** after reflashing the Pi — on your computer:
+**SSH host-key warning** after reflashing the Pi — run on *your* computer:
 
 ```bash
 ssh-keygen -R pi.local
 ```
 
-**Find the Pi's IP** — in the TP-Link Deco app: Network → Devices → `pi`,
-or `ping pi.local`.
+**Find the Pi's IP** — in the TP-Link Deco app: Network → Devices → `pi`, or
+`ping pi.local`.

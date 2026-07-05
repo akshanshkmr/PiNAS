@@ -7,6 +7,7 @@ those roots, so requests can't escape via `..` or symlinks.
 
 import os
 import shutil
+import zipfile
 from pathlib import Path
 
 from . import nas
@@ -98,6 +99,32 @@ def list_dir(path: str) -> dict:
     return {"path": str(target), "entries": entries}
 
 
+def dir_size(path: str) -> dict:
+    """Recursive size and file count of a folder. Skips symlinks (no loops)."""
+    target = resolve(path)
+    if not target.is_dir():
+        raise NotADirectoryError("Not a folder.")
+    total = 0
+    files = 0
+    stack = [str(target)]
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as it:
+                for entry in it:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(entry.path)
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat(follow_symlinks=False).st_size
+                            files += 1
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return {"path": str(target), "size": total, "files": files}
+
+
 def make_dir(parent: str, name: str) -> None:
     if not name or "/" in name or name in (".", ".."):
         raise ValueError("Invalid folder name.")
@@ -114,6 +141,71 @@ def delete(path: str) -> None:
         shutil.rmtree(target)
     else:
         target.unlink()
+
+
+class _ZipBuffer:
+    """A minimal writable that hands the ZipFile's output to the streamer."""
+
+    def __init__(self):
+        self._chunks = []
+
+    def write(self, data):
+        self._chunks.append(bytes(data))
+        return len(data)
+
+    def flush(self):
+        pass
+
+    def drain(self) -> bytes:
+        if not self._chunks:
+            return b""
+        data = b"".join(self._chunks)
+        self._chunks.clear()
+        return data
+
+
+def zip_dir_stream(target: Path):
+    """Yield a zip archive of `target` incrementally — no temp file, so large
+    folders start downloading immediately and use bounded memory. Stored (no
+    compression), which is fastest and ideal for already-compressed media.
+    Symlinks are skipped so the archive can't reach outside the folder.
+    """
+    buf = _ZipBuffer()
+    base = target.parent
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED, allowZip64=True) as zf:
+        for dirpath, dirnames, filenames in os.walk(target):  # followlinks=False
+            for name in sorted(dirnames):
+                full = os.path.join(dirpath, name)
+                if os.path.islink(full):
+                    continue
+                zf.writestr(os.path.relpath(full, base) + "/", b"")  # keep empty dirs
+                data = buf.drain()
+                if data:
+                    yield data
+            for name in sorted(filenames):
+                full = os.path.join(dirpath, name)
+                if os.path.islink(full):
+                    continue
+                try:
+                    info = zipfile.ZipInfo.from_file(full, os.path.relpath(full, base))
+                    info.compress_type = zipfile.ZIP_STORED
+                    with zf.open(info, "w") as dest, open(full, "rb") as src:
+                        while True:
+                            chunk = src.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            dest.write(chunk)
+                            data = buf.drain()
+                            if data:
+                                yield data
+                except OSError:
+                    continue
+                data = buf.drain()
+                if data:
+                    yield data
+    data = buf.drain()
+    if data:
+        yield data
 
 
 def read_text(path: str) -> str:

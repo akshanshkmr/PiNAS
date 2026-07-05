@@ -162,8 +162,14 @@ body {
 
 .navitem-glyph {
   color: var(--faint);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
   transition: color 0.14s ease;
+}
+
+.navitem-glyph svg {
+  width: 17px;
+  height: 17px;
 }
 
 .navitem:hover {
@@ -179,7 +185,10 @@ body {
 
 .navitem.is-active .navitem-glyph {
   color: var(--accent);
-  text-shadow: var(--glow) color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.navitem.is-active .navitem-glyph svg {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 65%, transparent));
 }
 
 .chassis-foot {
@@ -713,9 +722,11 @@ body {
   border: 1px solid var(--line);
   border-radius: 2px;
   padding: 8px 14px;
+  min-height: 36px; /* match input/select height in mixed rows */
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
 }
@@ -805,11 +816,13 @@ body {
 
 .input {
   font: 400 13px var(--font-mono);
+  line-height: 1.35;
   color: var(--ink);
   background: var(--deep);
   border: 1px solid var(--line);
   border-radius: 2px;
   padding: 8px 10px;
+  height: 36px; /* shared control height so inputs, selects and buttons match */
   width: 100%;
 }
 
@@ -819,11 +832,21 @@ body {
 
 .input-color {
   padding: 2px;
-  height: 36px;
   cursor: pointer;
 }
 
-select.input { cursor: pointer; }
+/* selects: reset the native chrome and draw a themed chevron so dropdowns
+   match text inputs in height and the app's dark styling */
+select.input {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 30px;
+  background: var(--deep)
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%236b7d9e' stroke-width='1.5'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E")
+    no-repeat right 11px center;
+}
 
 .field {
   display: flex;
@@ -880,9 +903,78 @@ input[type='checkbox'] {
   height: 15px;
 }
 
+/* range slider styled like the app's bars: flat track, accent fill, blocky
+   phosphor thumb. Webkit has no native fill, so the filled portion comes from
+   a gradient driven by the inline --fill custom property (set to the value %). */
 input[type='range'] {
-  accent-color: var(--accent);
+  appearance: none;
+  -webkit-appearance: none;
   width: 100%;
+  height: 6px;
+  background: transparent;
+  cursor: pointer;
+  margin: 8px 0;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 2px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0,
+    var(--accent) var(--fill, 50%),
+    var(--deep) var(--fill, 50%)
+  );
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 2px;
+  border: none;
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: 2px;
+  border: 1px solid var(--line-soft);
+  background: var(--deep);
+}
+
+input[type='range']::-moz-range-progress {
+  height: 6px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+input[type='range']::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: none;
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type='range']:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type='range']:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* toggle switch */
@@ -1178,7 +1270,7 @@ input[type='range'] {
 
 .swatch {
   width: 46px;
-  height: 32px;
+  height: 36px;
   padding: 2px;
   border: 1px solid var(--line);
   border-radius: 2px;
@@ -1424,7 +1516,65 @@ input[type='range'] {
 }
 
 .crumb-up {
-  margin-left: 8px;
+  appearance: none;
+  margin-left: 10px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--deep);
+  color: var(--muted);
+  font: 400 12px var(--font-mono);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: border-color 0.14s ease, color 0.14s ease;
+}
+
+.crumb-up:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.files-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.files-search {
+  max-width: 280px;
+}
+
+.sort-th {
+  appearance: none;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sort-th:hover {
+  color: var(--ink);
+}
+
+.sort-th-num {
+  flex-direction: row;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.sort-arrow {
+  color: var(--accent);
+  font-size: 8px;
 }
 
 .files-table td {
@@ -1460,6 +1610,11 @@ input[type='range'] {
   text-align: center;
   color: var(--muted);
   flex-shrink: 0;
+}
+
+svg.file-glyph {
+  height: 16px;
+  display: block;
 }
 
 .glyph-dir { color: var(--accent); }

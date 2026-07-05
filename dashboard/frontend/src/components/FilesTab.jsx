@@ -8,7 +8,25 @@ const GALLERY_KINDS = ['image', 'video', 'audio']
 const RAW = (p) => `/status/api/files/raw?path=${encodeURIComponent(p)}`
 const DOWNLOAD = (p) => `/status/api/files/download?path=${encodeURIComponent(p)}`
 
-const KIND_GLYPH = { dir: '▸', image: '▧', video: '▶', audio: '♪', text: '≡', file: '·' }
+const KIND_GLYPH = { image: '▧', video: '▶', audio: '♪', text: '≡', file: '·' }
+
+function FileIcon({ kind }) {
+  if (kind === 'dir') {
+    return (
+      <svg className="file-glyph glyph-dir" viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          d="M1.5 4.1a1 1 0 0 1 1-1h3.1l1.4 1.5h6.5a1 1 0 0 1 1 1v6.3a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"
+          fill="currentColor"
+          fillOpacity="0.16"
+          stroke="currentColor"
+          strokeWidth="1"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
+  return <span className={`file-glyph glyph-${kind}`}>{KIND_GLYPH[kind]}</span>
+}
 
 function fmtDate(mtime) {
   return new Date(mtime * 1000).toLocaleString([], {
@@ -179,6 +197,12 @@ export default function FilesTab() {
   const [folderName, setFolderName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
   const fileInput = useRef(null)
+  // recursive folder sizes, computed lazily and cached across navigation
+  const sizeCache = useRef(new Map())
+  const [, bumpSizes] = useState(0)
+  const [sortKey, setSortKey] = useState('name') // 'name' | 'size' | 'modified'
+  const [sortDir, setSortDir] = useState('asc') // 'asc' | 'desc'
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     api('/files/roots')
@@ -204,12 +228,86 @@ export default function FilesTab() {
     }
   }, [path])
 
+  // After a listing arrives, compute folder sizes in the background so the
+  // list itself stays instant. Cached per path, limited concurrency.
+  useEffect(() => {
+    if (!listing) return
+    let cancelled = false
+    const pending = listing.entries.filter((e) => e.is_dir && !sizeCache.current.has(e.path))
+    if (!pending.length) return
+    let next = 0
+    async function worker() {
+      while (!cancelled && next < pending.length) {
+        const entry = pending[next++]
+        sizeCache.current.set(entry.path, { pending: true })
+        bumpSizes((v) => v + 1)
+        try {
+          const r = await api(`/files/dirsize?path=${encodeURIComponent(entry.path)}`)
+          if (cancelled) return
+          sizeCache.current.set(entry.path, { size: r.size, files: r.files })
+        } catch {
+          if (cancelled) return
+          sizeCache.current.set(entry.path, { error: true })
+        }
+        bumpSizes((v) => v + 1)
+      }
+    }
+    Promise.all([worker(), worker(), worker()])
+    return () => {
+      cancelled = true
+    }
+  }, [listing])
+
   function refresh() {
-    setPath((p) => p) // no-op; use reload below
     if (path)
       api(`/files/list?path=${encodeURIComponent(path)}`)
         .then(setListing)
         .catch((err) => setError(err.detail))
+  }
+
+  function sizeOf(entry) {
+    if (!entry.is_dir) return entry.size
+    const s = sizeCache.current.get(entry.path)
+    return s && typeof s.size === 'number' ? s.size : -1 // pending/unknown sorts first
+  }
+
+  function sizeCell(entry) {
+    if (!entry.is_dir) return fmtBytes(entry.size)
+    const s = sizeCache.current.get(entry.path)
+    if (!s || s.pending) return <span className="tone-muted">…</span>
+    if (s.error) return '—'
+    return <span title={`${s.files} file${s.files === 1 ? '' : 's'}`}>{fmtBytes(s.size)}</span>
+  }
+
+  // Clicking a column sets it as the sort key; clicking the active one flips
+  // direction. New columns default to the most useful direction.
+  function toggleSort(key) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir(key === 'name' ? 'asc' : 'desc')
+    }
+  }
+
+  function sortArrow(key) {
+    if (key !== sortKey) return ''
+    return sortDir === 'asc' ? '▲' : '▼'
+  }
+
+  function visibleEntries() {
+    if (!listing) return []
+    const q = query.trim().toLowerCase()
+    const filtered = q ? listing.entries.filter((e) => e.name.toLowerCase().includes(q)) : listing.entries
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...filtered].sort((a, b) => {
+      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1 // folders always first
+      let cmp
+      if (sortKey === 'size') cmp = sizeOf(a) - sizeOf(b)
+      else if (sortKey === 'modified') cmp = a.mtime - b.mtime
+      else cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
+      return cmp * dir
+    })
   }
 
   function open(entry) {
@@ -271,8 +369,9 @@ export default function FilesTab() {
 
   async function doDelete(entry) {
     try {
-      const res = await api('/files/delete', { method: 'POST', body: { path: entry.path } })
+      await api('/files/delete', { method: 'POST', body: { path: entry.path } })
       toast.ok(`Deleted ${entry.name}`)
+      sizeCache.current.delete(entry.path)
       setConfirmDelete(null)
       refresh()
     } catch (err) {
@@ -295,6 +394,7 @@ export default function FilesTab() {
 
   // breadcrumb segments relative to the selected root
   const rel = path && root && path.length > root.length ? path.slice(root.length).split('/').filter(Boolean) : []
+  const visible = visibleEntries()
 
   return (
     <div className="stack">
@@ -350,9 +450,9 @@ export default function FilesTab() {
             )
           })}
           {path !== root && (
-            <Btn variant="ghost" onClick={goUp} className="crumb-up">
+            <button className="crumb-up" onClick={goUp} title="Up one folder">
               ↑ Up
-            </Btn>
+            </button>
           )}
         </div>
 
@@ -378,40 +478,74 @@ export default function FilesTab() {
           </div>
         )}
 
+        {listing && listing.entries.length > 0 && (
+          <div className="files-toolbar">
+            <input
+              className="input mono files-search"
+              placeholder="Filter by name…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <span className="field-hint">
+                {visible.length} of {listing.entries.length}
+              </span>
+            )}
+          </div>
+        )}
+
         {error && <div className="form-error">{error}</div>}
 
         {!listing && !error && <p className="field-hint">Reading folder…</p>}
 
         {listing && listing.entries.length === 0 && <EmptyState>This folder is empty.</EmptyState>}
 
-        {listing && listing.entries.length > 0 && (
+        {listing && listing.entries.length > 0 && visible.length === 0 && (
+          <EmptyState>No files match “{query}”.</EmptyState>
+        )}
+
+        {listing && visible.length > 0 && (
           <div className="table-scroll">
             <table className="table files-table">
               <thead>
                 <tr>
-                  <th>name</th>
-                  <th className="num">size</th>
-                  <th>modified</th>
+                  <th>
+                    <button className="sort-th" onClick={() => toggleSort('name')}>
+                      name <span className="sort-arrow">{sortArrow('name')}</span>
+                    </button>
+                  </th>
+                  <th className="num">
+                    <button className="sort-th sort-th-num" onClick={() => toggleSort('size')}>
+                      <span className="sort-arrow">{sortArrow('size')}</span> size
+                    </button>
+                  </th>
+                  <th>
+                    <button className="sort-th" onClick={() => toggleSort('modified')}>
+                      modified <span className="sort-arrow">{sortArrow('modified')}</span>
+                    </button>
+                  </th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {listing.entries.map((entry) => (
+                {visible.map((entry) => (
                   <tr key={entry.path} className="file-row">
                     <td>
                       <button className="file-name" onClick={() => open(entry)}>
-                        <span className={`file-glyph glyph-${entry.kind}`}>{KIND_GLYPH[entry.kind]}</span>
+                        <FileIcon kind={entry.kind} />
                         <span className={entry.is_dir ? 'file-dir' : ''}>{entry.name}</span>
                       </button>
                     </td>
-                    <td className="num mono tone-muted">{entry.is_dir ? '—' : fmtBytes(entry.size)}</td>
+                    <td className="num mono tone-muted">{sizeCell(entry)}</td>
                     <td className="mono tone-muted file-date">{fmtDate(entry.mtime)}</td>
                     <td className="file-actions">
-                      {!entry.is_dir && (
-                        <a className="icon-btn" href={DOWNLOAD(entry.path)} title="Download">
-                          ↓
-                        </a>
-                      )}
+                      <a
+                        className="icon-btn"
+                        href={DOWNLOAD(entry.path)}
+                        title={entry.is_dir ? 'Download folder as .zip' : 'Download'}
+                      >
+                        ↓
+                      </a>
                       {confirmDelete === entry.path ? (
                         <>
                           <button className="icon-btn danger" onClick={() => doDelete(entry)} title="Confirm delete">

@@ -1,9 +1,10 @@
 import asyncio
 import mimetypes
 import os
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ..security import require_auth
@@ -46,6 +47,11 @@ async def list_dir(path: str = Query(...)):
     return await asyncio.to_thread(_guard, filesvc.list_dir, path)
 
 
+@router.get("/dirsize")
+async def dirsize(path: str = Query(...)):
+    return await asyncio.to_thread(_guard, filesvc.dir_size, path)
+
+
 @router.get("/text")
 async def text(path: str = Query(...)):
     return {"text": await asyncio.to_thread(_guard, filesvc.read_text, path)}
@@ -54,8 +60,17 @@ async def text(path: str = Query(...)):
 @router.get("/download")
 async def download(path: str = Query(...)):
     target = await asyncio.to_thread(_guard, filesvc.resolve, path)
+    if target.is_dir():
+        # stream the folder as a zip generated on the fly
+        name = (target.name or "nas").replace('"', "")
+        disposition = f"attachment; filename=\"{name}.zip\"; filename*=UTF-8''{quote(name)}.zip"
+        return StreamingResponse(
+            filesvc.zip_dir_stream(target),
+            media_type="application/zip",
+            headers={"Content-Disposition": disposition},
+        )
     if not target.is_file():
-        raise HTTPException(status_code=404, detail="Not a file.")
+        raise HTTPException(status_code=404, detail="Not found.")
     return FileResponse(target, filename=target.name)
 
 

@@ -228,6 +228,7 @@ function AppearanceCard({ config, reload }) {
               max="100"
               value={form.rgb_brightness}
               disabled={!form.rgb_enable}
+              style={{ '--fill': `${form.rgb_brightness}%` }}
               onChange={(e) => set({ rgb_brightness: Number(e.target.value) })}
             />
           </Field>
@@ -238,6 +239,7 @@ function AppearanceCard({ config, reload }) {
               max="100"
               value={form.rgb_speed}
               disabled={!form.rgb_enable}
+              style={{ '--fill': `${form.rgb_speed}%` }}
               onChange={(e) => set({ rgb_speed: Number(e.target.value) })}
             />
           </Field>

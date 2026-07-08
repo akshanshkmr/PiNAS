@@ -4,7 +4,7 @@ import os
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from ..security import require_auth
@@ -80,6 +80,12 @@ async def raw(path: str = Query(...)):
     target = await asyncio.to_thread(_guard, filesvc.resolve, path)
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Not a file.")
+    if target.suffix.lower() in filesvc.HEIF_EXT:
+        # browsers can't decode HEIC — transcode to JPEG for the preview
+        if not filesvc.heif_supported():
+            raise HTTPException(status_code=415, detail="HEIC preview isn't available (pillow-heif not installed).")
+        data = await asyncio.to_thread(_guard, filesvc.heic_to_jpeg, path)
+        return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
     media = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
     return FileResponse(target, media_type=media)
 

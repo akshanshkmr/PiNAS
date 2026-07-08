@@ -5,6 +5,7 @@ mounted array mountpoints). Paths are realpath-resolved and checked against
 those roots, so requests can't escape via `..` or symlinks.
 """
 
+import io
 import os
 import shutil
 import zipfile
@@ -12,7 +13,20 @@ from pathlib import Path
 
 from . import nas
 
-IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico"}
+# HEIC/HEIF can't be decoded by browsers, so we transcode to JPEG on the fly.
+try:
+    import pillow_heif
+    from PIL import Image
+
+    pillow_heif.register_heif_opener()
+    _HEIF_OK = True
+except Exception:  # pragma: no cover - optional dependency / platform wheel
+    _HEIF_OK = False
+
+HEIF_EXT = {".heic", ".heif"}
+PREVIEW_MAX_DIM = 2560  # downscale long edge for a snappy, screen-sized preview
+
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".avif", ".ico", ".heic", ".heif"}
 VIDEO_EXT = {".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".ogv"}
 AUDIO_EXT = {".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".opus"}
 TEXT_EXT = {
@@ -206,6 +220,30 @@ def zip_dir_stream(target: Path):
     data = buf.drain()
     if data:
         yield data
+
+
+def heif_supported() -> bool:
+    return _HEIF_OK
+
+
+def heic_to_jpeg(path: str) -> bytes:
+    """Transcode a HEIC/HEIF file to a screen-sized JPEG for browser preview."""
+    if not _HEIF_OK:
+        raise RuntimeError("HEIC preview needs pillow-heif on the server.")
+    target = resolve(path)
+    if not target.is_file():
+        raise FileNotFoundError("Not a file.")
+    try:
+        with Image.open(target) as im:
+            im = im.convert("RGB")
+            im.thumbnail((PREVIEW_MAX_DIM, PREVIEW_MAX_DIM))
+            buf = io.BytesIO()
+            im.save(buf, format="JPEG", quality=88)
+            return buf.getvalue()
+    except OSError:
+        raise
+    except Exception as exc:  # Pillow decode errors aren't OSError
+        raise ValueError(f"Could not decode image: {exc}")
 
 
 def read_text(path: str) -> str:

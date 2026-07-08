@@ -11,4 +11,6 @@ dependencies = [
     "six",  # undeclared runtime dependency of python-pam
     "python-multipart",  # form parsing for file uploads
     "humanize",
+    "pillow",       # image handling for previews
+    "pillow-heif",  # decode HEIC/HEIF (iPhone photos) for browser preview
 ]

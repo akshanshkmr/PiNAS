@@ -19,12 +19,12 @@ import TerminalTab from './components/TerminalTab'
 import ControlsTab from './components/ControlsTab'
 
 const TABS = [
-  { id: 'system', label: 'System', path: '/system', component: SystemTab },
-  { id: 'nas', label: 'Storage', path: '/storage', component: NasTab },
-  { id: 'files', label: 'Files', path: '/files', component: FilesTab },
-  { id: 'services', label: 'Services', path: '/services', component: ServicesTab },
-  { id: 'terminal', label: 'Terminal', path: '/terminal', component: TerminalTab },
-  { id: 'controls', label: 'Controls', path: '/controls', component: ControlsTab },
+  { id: 'system',   label: 'System',   sub: 'live telemetry · every 2 seconds',   path: '/system',   component: SystemTab },
+  { id: 'nas',      label: 'Storage',  sub: 'raid · samba shares · smart health', path: '/storage',  component: NasTab },
+  { id: 'files',    label: 'Files',    sub: 'browse · upload · preview',          path: '/files',    component: FilesTab },
+  { id: 'services', label: 'Services', sub: 'systemd · tailscale',                path: '/services', component: ServicesTab },
+  { id: 'terminal', label: 'Terminal', sub: 'bash login shell',                   path: '/terminal', component: TerminalTab },
+  { id: 'controls', label: 'Controls', sub: 'power · updates · case · fans',      path: '/controls', component: ControlsTab },
 ]
 
 function TabIcon({ id }) {
@@ -203,7 +203,10 @@ function Workspace({ user, stats, stale, onLogout }) {
         <TelemetryRail stats={stats} stale={stale} />
         <main className="panel-area" key={loc.pathname}>
           <div className="area-head">
-            <h1 className="area-title">{active.label}</h1>
+            <div className="area-head-titles">
+              <h1 className="area-title">{active.label}</h1>
+              {active.sub && <p className="area-sub mono">{active.sub}</p>}
+            </div>
             {stale && <span className="stale-flag mono">signal lost · retrying</span>}
           </div>
           <Routes>
@@ -266,7 +269,22 @@ export default function App() {
   }
 
   if (user === undefined) {
-    return <div className="boot-screen mono">pi-nas :: establishing session…</div>
+    return (
+      <div className="boot-screen">
+        <span className="viewport-tick vt-tl" aria-hidden="true" />
+        <span className="viewport-tick vt-tr" aria-hidden="true" />
+        <span className="viewport-tick vt-bl" aria-hidden="true" />
+        <span className="viewport-tick vt-br" aria-hidden="true" />
+        <div className="boot-stack">
+          <div className="login-led">
+            <span className="login-led-dot" aria-hidden="true" />
+            pironman 5 · handshake
+          </div>
+          <div className="boot-brand">PI·NAS</div>
+          <div className="boot-status mono">establishing session…</div>
+        </div>
+      </div>
+    )
   }
   if (user === null) {
     return (

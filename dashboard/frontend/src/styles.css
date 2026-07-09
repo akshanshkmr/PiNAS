@@ -68,12 +68,59 @@ body {
 }
 
 .boot-screen {
+  position: relative;
   display: grid;
   place-items: center;
   min-height: 100vh;
+  padding: 24px;
+  background:
+    radial-gradient(60% 55% at 50% 40%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 65%),
+    var(--bg);
+  overflow: hidden;
+}
+
+.boot-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.boot-brand {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 7vw, 84px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  color: var(--ink);
+  text-shadow: 0 0 42px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.boot-status {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
   color: var(--muted);
-  letter-spacing: 0.04em;
-  font-size: 13px;
+  position: relative;
+  padding-right: 22px;
+}
+
+/* trailing dots animation on the status line */
+.boot-status::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent) 33%, transparent 33%) repeat-x;
+  background-size: 4px 2px;
+  animation: boot-dots 1.1s steps(3) infinite;
+}
+
+@keyframes boot-dots {
+  from { background-position: -12px 0; }
+  to   { background-position:   0 0; }
 }
 
 /* ---- chassis (sidebar) ---- */
@@ -130,6 +177,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.12em;
   color: var(--ink);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .brand-sub {
@@ -370,16 +418,36 @@ body {
 
 .area-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 16px;
-  margin-bottom: 22px;
+  margin-bottom: 26px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.area-head-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .area-title {
   font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.005em;
+  line-height: 1.05;
+  margin: 0;
+  text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.area-sub {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
   margin: 0;
 }
 

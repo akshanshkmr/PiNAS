@@ -13,4 +13,5 @@ dependencies = [
     "humanize",
     "pillow",       # image handling for previews
     "pillow-heif",  # decode HEIC/HEIF (iPhone photos) for browser preview
+    "httpx",        # calls to the local vision model (Ollama OpenAI-compat)
 ]

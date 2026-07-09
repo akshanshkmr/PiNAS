@@ -1581,6 +1581,99 @@ input[type='range']:disabled {
   padding: 6px 10px;
 }
 
+/* AI: inline caption + tag chips under each file's name */
+.file-tags-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 4px 0 2px 26px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.file-caption {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.file-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--deep));
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.file-tag:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--deep));
+}
+
+/* AI: batch tagging progress ribbon */
+.ai-progress {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--deep));
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  animation: pulse-border 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  50% { border-left-color: color-mix(in srgb, var(--accent) 55%, var(--deep)); }
+}
+
+.ai-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-progress-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.ai-progress-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ai-progress-current {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-progress-caption {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .file-name {
   appearance: none;
   background: none;

@@ -110,33 +110,7 @@ def list_dir(path: str) -> dict:
                 }
             )
     entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
-    # attach any cached AI tags for the image entries so the UI can render them
-    # without a second round-trip
-    _attach_tags(entries)
     return {"path": str(target), "entries": entries}
-
-
-def _attach_tags(entries: list[dict]) -> None:
-    try:
-        from . import tags  # local import to avoid a circular dep at module load
-    except Exception:
-        return
-    image_paths = [e["path"] for e in entries if not e["is_dir"] and e.get("kind") == "image"]
-    if not image_paths:
-        return
-    try:
-        cache = tags.entries_for_paths(image_paths)
-    except Exception:
-        return
-    for e in entries:
-        hit = cache.get(e["path"])
-        if not hit:
-            continue
-        # a stale cache entry (older mtime) shouldn't be shown
-        if abs(hit["mtime"] - e["mtime"]) > 0.5:
-            continue
-        e["caption"] = hit["caption"]
-        e["tags"] = hit["tags"]
 
 
 def dir_size(path: str) -> dict:

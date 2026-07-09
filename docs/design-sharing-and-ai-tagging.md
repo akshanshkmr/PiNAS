@@ -94,7 +94,17 @@ open a link, you need **Funnel** (public HTTPS).
 
 ---
 
-## 2. Local AI auto-tagging
+## 2. Local AI auto-tagging — **shelved 2026-07-09**
+
+We built and tested this end-to-end (Ollama + `moondream` on the Pi 5, caption →
+tag extraction, SQLite cache, background queue, Files-tab UI). It worked, but
+on this 4 GB Pi it was too costly to keep: ~25–45 s per image on the CPU, the
+1.7 GB model held ~1.7 GB resident while active, and idle RAM stayed elevated.
+Everything was reverted (Ollama uninstalled, `moondream` deleted, dashboard
+code removed). Keeping the design below for the record in case a beefier host
+(a tailnet GPU box) becomes available later.
+
+
 
 ### Where the model runs — on the Pi
 LM Studio has no Raspberry Pi build, but the engine does. Recommended:

@@ -265,8 +265,6 @@ export default function FilesTab() {
   const [sortKey, setSortKey] = useState('name') // 'name' | 'size' | 'modified'
   const [sortDir, setSortDir] = useState('asc') // 'asc' | 'desc'
   const [query, setQuery] = useState('')
-  // AI tagging queue state (polled while a batch is running)
-  const [aiQueue, setAiQueue] = useState(null)
 
   useEffect(() => {
     api('/files/roots')
@@ -359,17 +357,10 @@ export default function FilesTab() {
     return sortDir === 'asc' ? '▲' : '▼'
   }
 
-  function matchesQuery(entry, q) {
-    if (entry.name.toLowerCase().includes(q)) return true
-    if (entry.caption && entry.caption.toLowerCase().includes(q)) return true
-    if (entry.tags && entry.tags.some((t) => t.toLowerCase().includes(q))) return true
-    return false
-  }
-
   function visibleEntries() {
     if (!listing) return []
     const q = query.trim().toLowerCase()
-    const filtered = q ? listing.entries.filter((e) => matchesQuery(e, q)) : listing.entries
+    const filtered = q ? listing.entries.filter((e) => e.name.toLowerCase().includes(q)) : listing.entries
     const dir = sortDir === 'asc' ? 1 : -1
     return [...filtered].sort((a, b) => {
       if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1 // folders always first
@@ -379,40 +370,6 @@ export default function FilesTab() {
       else cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })
       return cmp * dir
     })
-  }
-
-  // Kick off a folder-wide tagging batch and poll progress until the queue
-  // drains, then reload the listing to pick up the newly cached captions.
-  async function tagFolder() {
-    try {
-      const res = await api('/ai/tag-folder', { method: 'POST', body: { path, recursive: false } })
-      if (!res.queued) {
-        toast.ok('Everything in this folder is already tagged.')
-        return
-      }
-      toast.ok(`Queued ${res.queued} image${res.queued === 1 ? '' : 's'}`)
-      let ticks = 0
-      const t = setInterval(async () => {
-        try {
-          const q = await api('/ai/queue')
-          setAiQueue(q)
-          ticks++
-          if (q.pending === 0 && !q.processing) {
-            clearInterval(t)
-            setTimeout(() => setAiQueue(null), 2500)
-            refresh()
-          } else if (ticks % 3 === 0) {
-            // periodically refresh so completed captions show up mid-run
-            refresh()
-          }
-        } catch {
-          clearInterval(t)
-          setAiQueue(null)
-        }
-      }, 2000)
-    } catch (err) {
-      toast.err(err.detail)
-    }
   }
 
   function open(entry) {
@@ -525,9 +482,6 @@ export default function FilesTab() {
                 ))}
               </select>
             )}
-            <Btn onClick={tagFolder} title="Auto-tag the images in this folder with a local vision model">
-              Tag folder
-            </Btn>
             <Btn onClick={() => setNewFolder((v) => !v)}>New folder</Btn>
             <Btn variant="primary" onClick={() => fileInput.current?.click()} busy={uploading}>
               Upload
@@ -590,7 +544,7 @@ export default function FilesTab() {
           <div className="files-toolbar">
             <input
               className="input mono files-search"
-              placeholder="Filter by name, caption, or tag…"
+              placeholder="Filter by name…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -598,26 +552,6 @@ export default function FilesTab() {
               <span className="field-hint">
                 {visible.length} of {listing.entries.length}
               </span>
-            )}
-          </div>
-        )}
-
-        {aiQueue && (aiQueue.processing || aiQueue.pending > 0) && (
-          <div className="ai-progress">
-            <div className="ai-progress-head">
-              <span className="mono ai-progress-title">Tagging photos</span>
-              <span className="mono ai-progress-count">
-                {aiQueue.done} done · {aiQueue.pending} left
-                {aiQueue.failed > 0 && ` · ${aiQueue.failed} failed`}
-              </span>
-            </div>
-            {aiQueue.processing && (
-              <div className="ai-progress-current mono" title={aiQueue.processing}>
-                ▸ {aiQueue.processing.split('/').pop()}
-              </div>
-            )}
-            {aiQueue.last_caption && (
-              <div className="ai-progress-caption">{aiQueue.last_caption}</div>
             )}
           </div>
         )}
@@ -663,18 +597,6 @@ export default function FilesTab() {
                         <FileIcon kind={entry.kind} />
                         <span className={entry.is_dir ? 'file-dir' : ''}>{entry.name}</span>
                       </button>
-                      {(entry.caption || (entry.tags && entry.tags.length > 0)) && (
-                        <div className="file-tags-line" title={entry.caption || ''}>
-                          {entry.caption && (
-                            <span className="file-caption">{entry.caption}</span>
-                          )}
-                          {entry.tags && entry.tags.slice(0, 6).map((t) => (
-                            <span key={t} className="file-tag" onClick={() => setQuery(t)}>
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </td>
                     <td className="num mono tone-muted">{sizeCell(entry)}</td>
                     <td className="mono tone-muted file-date">{fmtDate(entry.mtime)}</td>

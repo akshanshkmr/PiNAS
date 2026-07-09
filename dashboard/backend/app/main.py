@@ -11,8 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routers import ai, auth, controls, files, nas, services, system, terminal
-from .services import tag_queue, tags
+from .routers import auth, controls, files, nas, services, system, terminal
 from .services.monitor import monitor
 
 BASE_PATH = "/status"
@@ -22,8 +21,6 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "di
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     monitor.start()
-    tags.init()
-    tag_queue.start()
     yield
     monitor.stop()
 
@@ -36,7 +33,6 @@ for router in (
     controls.router,
     nas.router,
     files.router,
-    ai.router,
     services.router,
     terminal.router,
 ):

@@ -101,28 +101,46 @@ keyboard-driven media viewer with slideshow.</sub>
 
 ## Quick start
 
-On a fresh Raspberry Pi OS install:
+On a fresh Raspberry Pi OS install, one line does everything:
 
 ```bash
-sudo apt update && sudo apt install -y git
-git clone https://github.com/akshanshkmr/homeserver.git
-cd homeserver
-./setup.sh
+curl -fsSL https://raw.githubusercontent.com/akshanshkmr/PiNAS/main/install.sh | bash
 ```
 
-Open **http://pi.local/** and sign in with your Linux account. That's it.
+That installs `git`, clones the repo into `~/PiNAS`, and hands off to
+`setup.sh` — which installs Node, `uv`, Apache, Samba, mdadm, smartmontools,
+Pironman, and Tailscale, builds the frontend, and starts the `dashboard`
+service. When it finishes, open **http://pi.local/** and sign in with your
+Linux account.
 
-> `setup.sh` is **idempotent** — re-run it after every `git pull` to rebuild
-> the frontend, sync backend deps, and restart services. Hardware-specific
-> steps (Pironman case, CPU fan) never abort the run: they warn and continue,
-> so you can point it at a Pi 4 or a case-less Pi 5 and everything except the
-> case controls still works.
+> The installer is **idempotent** — re-run the same one-liner to update.
+> Hardware-specific steps (Pironman case, CPU fan) never abort the run: they
+> warn and continue, so you can point it at a Pi 4 or a case-less Pi 5 and
+> everything except the case controls still works.
 
 ### Optional flags
 
+Both `install.sh` and `setup.sh` read these; pass them via the environment on
+the same line:
+
 ```bash
-SETUP_ENABLE_NOPASSWD_SUDO=1 ./setup.sh   # add the NOPASSWD sudoers rule
-SETUP_FULL_UPGRADE=1 ./setup.sh           # also run a full `apt upgrade`
+# add a NOPASSWD sudoers rule for the current user if they don't have one
+curl -fsSL https://.../install.sh | SETUP_ENABLE_NOPASSWD_SUDO=1 bash
+
+# also run a full apt upgrade (slow; off by default)
+curl -fsSL https://.../install.sh | SETUP_FULL_UPGRADE=1 bash
+
+# clone to a different location
+curl -fsSL https://.../install.sh | PINAS_DIR=/opt/pinas bash
+```
+
+### Manual clone (if you'd rather see the code first)
+
+```bash
+sudo apt update && sudo apt install -y git
+git clone https://github.com/akshanshkmr/PiNAS.git
+cd PiNAS
+./setup.sh
 ```
 
 ## Keyboard shortcuts (media viewer)

@@ -76,7 +76,7 @@ function TailscalePanel() {
   const running = ts.state === 'Running'
   // Trailing slash matters: it hits the dashboard directly instead of an Apache
   // redirect, which would otherwise downgrade the tailnet URL to http.
-  const httpsUrl = ts.dns_name ? `https://${ts.dns_name}/status/` : null
+  const httpsUrl = ts.dns_name ? `https://${ts.dns_name}/` : null
   const smbHost = ts.dns_name || ts.ips[0]
 
   return (

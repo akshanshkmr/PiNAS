@@ -95,6 +95,8 @@ body {
   align-items: center;
   gap: 12px;
   padding: 4px 6px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .power-led {
@@ -157,6 +159,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  text-decoration: none;
   transition: color 0.14s ease, background 0.14s ease;
 }
 
@@ -804,6 +807,20 @@ body {
   border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+/* SVG icon inside a button — inherits color and sits on the text baseline */
+.btn-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  vertical-align: -2px;
+}
+
+.icon-btn .btn-icon {
+  width: 15px;
+  height: 15px;
+  vertical-align: 0;
 }
 
 @keyframes spin {

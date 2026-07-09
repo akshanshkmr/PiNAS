@@ -49,7 +49,7 @@ export default function TerminalTab() {
     requestAnimationFrame(doFit)
 
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const ws = new WebSocket(`${proto}://${window.location.host}/status/api/terminal`)
+    const ws = new WebSocket(`${proto}://${window.location.host}/api/terminal`)
     ws.binaryType = 'arraybuffer'
     const decoder = new TextDecoder()
 

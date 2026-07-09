@@ -43,7 +43,7 @@ export default function Login({ onLogin }) {
         <span className="tick tick-bl" aria-hidden="true" />
         <span className="tick tick-br" aria-hidden="true" />
         <div className="login-led">pironman 5 · online</div>
-        <h1 className="login-title">PI·ADMIN</h1>
+        <h1 className="login-title">PI·NAS</h1>
         <p className="login-sub">Sign in with your Linux account.</p>
 
         <label className="field">

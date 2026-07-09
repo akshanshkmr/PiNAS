@@ -1,4 +1,4 @@
-const BASE = '/status/api'
+const BASE = '/api'
 
 export class ApiError extends Error {
   constructor(status, detail) {

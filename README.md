@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🖥️ Pi Admin
+# 🖥️ PiNAS
 
 **A self-hosted admin dashboard + NAS for a Raspberry Pi in a Pironman 5 case.**
 
@@ -16,7 +16,7 @@ controls — behind one clean instrument-panel UI.
 </div>
 
 <p align="center">
-  <img src="docs/dashboard.png" alt="Pi Admin dashboard — System tab" width="920">
+  <img src="docs/dashboard.png" alt="PiNAS dashboard — System tab" width="920">
 </p>
 
 ---
@@ -50,7 +50,7 @@ cd homeserver
 
 `setup.sh` is **idempotent** — re-run it after every `git pull` to rebuild the
 frontend, sync backend dependencies, and restart services. Then open
-**http://pi.local/status** and sign in with your Linux account.
+**http://pi.local/** and sign in with your Linux account.
 
 Hardware-specific steps (Pironman case, CPU fan) never abort the run — they warn
 and continue. Two optional env vars:
@@ -106,12 +106,8 @@ sudo tailscale serve --bg http://localhost:80
 Once connected, the **Services** tab shows tailnet status, connected devices,
 and ready-to-copy URLs:
 
-- **Dashboard (HTTPS):** `https://<node>.<tailnet>.ts.net/status/`
+- **Dashboard (HTTPS):** `https://<node>.<tailnet>.ts.net/`
 - **NAS (SMB):** `smb://<node>.<tailnet>.ts.net/<share>`
-
-> The trailing slash on the dashboard URL matters — it hits the app directly
-> instead of an Apache redirect. Apache branches the bare-domain redirect on the
-> `Host` header so the tailnet URL stays on `https://`.
 
 ## Security notes
 

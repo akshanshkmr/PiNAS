@@ -1,13 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Served behind Apache at /status, so all assets are prefixed.
+// Served at the site root behind Apache; the API lives under /api.
 export default defineConfig({
-  base: '/status/',
+  base: '/',
   plugins: [react()],
   server: {
     proxy: {
-      '/status/api': 'http://localhost:8501',
+      '/api': 'http://localhost:8501',
     },
   },
 })

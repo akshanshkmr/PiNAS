@@ -318,7 +318,7 @@ function UpdatesCard() {
     setApplying(true)
     setLog('')
     try {
-      const res = await fetch('/status/api/controls/updates/apply', {
+      const res = await fetch('/api/controls/updates/apply', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },

@@ -1,4 +1,12 @@
 import { useEffect, useState } from 'react'
+import {
+  BrowserRouter,
+  NavLink,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom'
 import { api } from './api'
 import { ToastHost } from './toast'
 import { SegMeter, severity } from './components/ui'
@@ -11,12 +19,12 @@ import TerminalTab from './components/TerminalTab'
 import ControlsTab from './components/ControlsTab'
 
 const TABS = [
-  { id: 'system', label: 'System', component: SystemTab },
-  { id: 'nas', label: 'Storage', component: NasTab },
-  { id: 'files', label: 'Files', component: FilesTab },
-  { id: 'services', label: 'Services', component: ServicesTab },
-  { id: 'terminal', label: 'Terminal', component: TerminalTab },
-  { id: 'controls', label: 'Controls', component: ControlsTab },
+  { id: 'system', label: 'System', path: '/system', component: SystemTab },
+  { id: 'nas', label: 'Storage', path: '/storage', component: NasTab },
+  { id: 'files', label: 'Files', path: '/files', component: FilesTab },
+  { id: 'services', label: 'Services', path: '/services', component: ServicesTab },
+  { id: 'terminal', label: 'Terminal', path: '/terminal', component: TerminalTab },
+  { id: 'controls', label: 'Controls', path: '/controls', component: ControlsTab },
 ]
 
 function TabIcon({ id }) {
@@ -96,32 +104,30 @@ function titleCase(s) {
   return s.replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function Sidebar({ user, tab, setTab, online, onLogout }) {
+function Sidebar({ user, online, onLogout }) {
   const firstName = titleCase((user.name || user.username).split(' ')[0])
   return (
     <aside className="chassis">
-      <div className="chassis-brand">
+      <NavLink to="/system" className="chassis-brand">
         <span className={`power-led ${online ? 'is-on' : 'is-off'}`} aria-hidden="true" />
         <div>
-          <div className="brand-name">PI·ADMIN</div>
+          <div className="brand-name">PI·NAS</div>
           <div className="brand-sub mono">pironman 5</div>
         </div>
-      </div>
+      </NavLink>
 
-      <nav className="chassis-nav" role="tablist">
+      <nav className="chassis-nav">
         {TABS.map((t) => (
-          <button
+          <NavLink
             key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`navitem ${tab === t.id ? 'is-active' : ''}`}
-            onClick={() => setTab(t.id)}
+            to={t.path}
+            className={({ isActive }) => `navitem ${isActive ? 'is-active' : ''}`}
           >
             <span className="navitem-glyph" aria-hidden="true">
               <TabIcon id={t.id} />
             </span>
             {t.label}
-          </button>
+          </NavLink>
         ))}
       </nav>
 
@@ -187,9 +193,33 @@ function TelemetryRail({ stats, stale }) {
   )
 }
 
+function Workspace({ user, stats, stale, onLogout }) {
+  const loc = useLocation()
+  const active = TABS.find((t) => t.path === loc.pathname) || TABS[0]
+  return (
+    <div className="app">
+      <Sidebar user={user} online={!stale && !!stats} onLogout={onLogout} />
+      <div className="workspace">
+        <TelemetryRail stats={stats} stale={stale} />
+        <main className="panel-area" key={loc.pathname}>
+          <div className="area-head">
+            <h1 className="area-title">{active.label}</h1>
+            {stale && <span className="stale-flag mono">signal lost · retrying</span>}
+          </div>
+          <Routes>
+            {TABS.map(({ id, path, component: C }) => (
+              <Route key={id} path={path} element={<C stats={stats} />} />
+            ))}
+            <Route path="*" element={<Navigate to="/system" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [user, setUser] = useState(undefined) // undefined = checking, null = logged out
-  const [tab, setTab] = useState('system')
   const [stats, setStats] = useState(null)
   const [stale, setStale] = useState(false)
 
@@ -209,7 +239,7 @@ export default function App() {
   // EventSource reconnects on its own after a drop; we only surface the state.
   useEffect(() => {
     if (!user) return
-    const es = new EventSource('/status/api/system/stream', { withCredentials: true })
+    const es = new EventSource('/api/system/stream', { withCredentials: true })
     es.onmessage = (e) => {
       try {
         setStats(JSON.parse(e.data))
@@ -236,7 +266,7 @@ export default function App() {
   }
 
   if (user === undefined) {
-    return <div className="boot-screen mono">pi-admin :: establishing session…</div>
+    return <div className="boot-screen mono">pi-nas :: establishing session…</div>
   }
   if (user === null) {
     return (
@@ -247,23 +277,10 @@ export default function App() {
     )
   }
 
-  const Active = TABS.find((t) => t.id === tab).component
-  const activeLabel = TABS.find((t) => t.id === tab).label
-
   return (
-    <div className="app">
-      <Sidebar user={user} tab={tab} setTab={setTab} online={!stale && !!stats} onLogout={logout} />
-      <div className="workspace">
-        <TelemetryRail stats={stats} stale={stale} />
-        <main className="panel-area" key={tab}>
-          <div className="area-head">
-            <h1 className="area-title">{activeLabel}</h1>
-            {stale && <span className="stale-flag mono">signal lost · retrying</span>}
-          </div>
-          <Active stats={stats} />
-        </main>
-      </div>
+    <BrowserRouter>
+      <Workspace user={user} stats={stats} stale={stale} onLogout={logout} />
       <ToastHost />
-    </div>
+    </BrowserRouter>
   )
 }

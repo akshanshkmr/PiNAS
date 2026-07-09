@@ -5,10 +5,91 @@ import { Badge, Btn, EmptyState, Panel } from './ui'
 
 const GALLERY_KINDS = ['image', 'video', 'audio']
 
-const RAW = (p) => `/status/api/files/raw?path=${encodeURIComponent(p)}`
-const DOWNLOAD = (p) => `/status/api/files/download?path=${encodeURIComponent(p)}`
+const RAW = (p) => `/api/files/raw?path=${encodeURIComponent(p)}`
+const DOWNLOAD = (p) => `/api/files/download?path=${encodeURIComponent(p)}`
 
 const KIND_GLYPH = { image: '▧', video: '▶', audio: '♪', text: '≡', file: '·' }
+
+/** Small SVG icons used on action buttons. currentColor so they inherit tone. */
+function Icon({ name }) {
+  const p = {
+    className: 'btn-icon',
+    viewBox: '0 0 16 16',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.5,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  }
+  switch (name) {
+    case 'upload':
+      return (
+        <svg {...p}>
+          <path d="M8 11V3" />
+          <polyline points="4.5 6.5 8 3 11.5 6.5" />
+          <path d="M2.5 12v1.5A1.5 1.5 0 0 0 4 15h8a1.5 1.5 0 0 0 1.5-1.5V12" />
+        </svg>
+      )
+    case 'download':
+      return (
+        <svg {...p}>
+          <path d="M8 3v8" />
+          <polyline points="4.5 7.5 8 11 11.5 7.5" />
+          <path d="M2.5 12v1.5A1.5 1.5 0 0 0 4 15h8a1.5 1.5 0 0 0 1.5-1.5V12" />
+        </svg>
+      )
+    case 'new-folder':
+      return (
+        <svg {...p}>
+          <path d="M1.8 4.3a1 1 0 0 1 1-1h3.1l1.4 1.5h6.4a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z" />
+          <line x1="8" y1="7.4" x2="8" y2="11" />
+          <line x1="6.2" y1="9.2" x2="9.8" y2="9.2" />
+        </svg>
+      )
+    case 'trash':
+      return (
+        <svg {...p}>
+          <polyline points="2.5 4 13.5 4" />
+          <path d="M4 4v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4" />
+          <path d="M6 4V2.6a.6.6 0 0 1 .6-.6h2.8a.6.6 0 0 1 .6.6V4" />
+          <line x1="6.8" y1="6.5" x2="6.8" y2="11.5" />
+          <line x1="9.2" y1="6.5" x2="9.2" y2="11.5" />
+        </svg>
+      )
+    case 'check':
+      return (
+        <svg {...p}>
+          <polyline points="3 8.5 6.5 12 13 4.5" />
+        </svg>
+      )
+    case 'x':
+      return (
+        <svg {...p}>
+          <line x1="4" y1="4" x2="12" y2="12" />
+          <line x1="12" y1="4" x2="4" y2="12" />
+        </svg>
+      )
+    case 'up':
+      return (
+        <svg {...p}>
+          <polyline points="4.5 8 8 4.5 11.5 8" />
+          <line x1="8" y1="4.5" x2="8" y2="12" />
+        </svg>
+      )
+    case 'refresh':
+      return (
+        <svg {...p}>
+          <path d="M13 4v3H10" />
+          <path d="M3 8a5 5 0 0 1 9-3l1 2" />
+          <path d="M3 12v-3h3" />
+          <path d="M13 8a5 5 0 0 1-9 3l-1-2" />
+        </svg>
+      )
+    default:
+      return null
+  }
+}
 
 function FileIcon({ kind }) {
   if (kind === 'dir') {
@@ -175,7 +256,7 @@ function Preview({ items, initialIndex, onClose }) {
               {isFull ? '⤢ Exit' : '⛶ Fullscreen'}
             </Btn>
             <a className="btn" href={DOWNLOAD(item.path)}>
-              Download
+              <Icon name="download" /> Download
             </a>
             <Btn variant="ghost" onClick={onClose}>
               Close
@@ -400,7 +481,7 @@ export default function FilesTab() {
       const form = new FormData()
       form.append('path', path)
       for (const f of files) form.append('files', f)
-      const res = await fetch('/status/api/files/upload', {
+      const res = await fetch('/api/files/upload', {
         method: 'POST',
         credentials: 'same-origin',
         body: form,
@@ -482,9 +563,11 @@ export default function FilesTab() {
                 ))}
               </select>
             )}
-            <Btn onClick={() => setNewFolder((v) => !v)}>New folder</Btn>
+            <Btn onClick={() => setNewFolder((v) => !v)}>
+              <Icon name="new-folder" /> New folder
+            </Btn>
             <Btn variant="primary" onClick={() => fileInput.current?.click()} busy={uploading}>
-              Upload
+              <Icon name="upload" /> Upload
             </Btn>
             <input
               ref={fileInput}
@@ -513,7 +596,7 @@ export default function FilesTab() {
           })}
           {path !== root && (
             <button className="crumb-up" onClick={goUp} title="Up one folder">
-              ↑ Up
+              <Icon name="up" /> Up
             </button>
           )}
         </div>
@@ -606,15 +689,15 @@ export default function FilesTab() {
                         href={DOWNLOAD(entry.path)}
                         title={entry.is_dir ? 'Download folder as .zip' : 'Download'}
                       >
-                        ↓
+                        <Icon name="download" />
                       </a>
                       {confirmDelete === entry.path ? (
                         <>
                           <button className="icon-btn danger" onClick={() => doDelete(entry)} title="Confirm delete">
-                            ✓
+                            <Icon name="check" />
                           </button>
                           <button className="icon-btn" onClick={() => setConfirmDelete(null)} title="Cancel">
-                            ✕
+                            <Icon name="x" />
                           </button>
                         </>
                       ) : (
@@ -623,7 +706,7 @@ export default function FilesTab() {
                           onClick={() => setConfirmDelete(entry.path)}
                           title={`Delete ${entry.name}`}
                         >
-                          🗑
+                          <Icon name="trash" />
                         </button>
                       )}
                     </td>

@@ -91,33 +91,13 @@ RGB / OLED / case-fan settings. CPU fan on/off. Everything in one panel.
 </tr>
 </table>
 
-## Screenshot tour
+## Files, up close
 
 <img src="docs/files.png" alt="Files tab — NAS folders with sizes, download and delete actions" width="100%">
 
-<sub>Files tab: recursive folder sizes, folder-first sorting, `.zip` downloads, and inline previews.</sub>
-
-<details>
-<summary><b>More screenshots</b></summary>
-<br />
-
-**Storage — RAID, Samba, and SMART health**
-
-<img src="docs/storage.png" alt="Storage tab" width="100%">
-
-**Services — systemd controls and Tailscale**
-
-<img src="docs/services.png" alt="Services tab" width="100%">
-
-**Terminal — a real bash login shell in the browser**
-
-<img src="docs/terminal.png" alt="Terminal tab" width="100%">
-
-**Login**
-
-<img src="docs/login.png" alt="Login screen" width="100%">
-
-</details>
+<sub>Recursive folder sizes, folder-first sorting, streamed `.zip` downloads,
+inline previews (photos, video, audio, text — including HEIC), and a
+keyboard-driven media viewer with slideshow.</sub>
 
 ## Quick start
 

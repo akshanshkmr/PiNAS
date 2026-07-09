@@ -1,7 +1,7 @@
 [project]
-name = "homeserver-dashboard"
+name = "pinas-dashboard"
 version = "1.0.0"
-description = "FastAPI backend for the Raspberry Pi homeserver admin dashboard"
+description = "FastAPI backend for PiNAS — a Raspberry Pi dashboard + NAS"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",

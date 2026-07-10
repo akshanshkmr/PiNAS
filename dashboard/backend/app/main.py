@@ -3,6 +3,7 @@
 Serves the JSON API under /api and the built React SPA at the site root.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,7 +11,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routers import auth, controls, files, nas, services, system, terminal
+from .routers import auth, backup, controls, files, nas, services, system, terminal
+from .services import backups
 from .services.monitor import monitor
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
@@ -19,7 +21,9 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "di
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     monitor.start()
+    backup_task = asyncio.create_task(backups.daily_config_backup_loop())
     yield
+    backup_task.cancel()
     monitor.stop()
 
 
@@ -33,6 +37,7 @@ for router in (
     files.router,
     services.router,
     terminal.router,
+    backup.router,
 ):
     app.include_router(router, prefix="/api")
 

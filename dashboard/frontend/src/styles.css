@@ -1563,6 +1563,96 @@ input[type='range']:disabled {
 }
 
 /* ============================================================
+   Files: upload progress ribbon
+   ============================================================ */
+
+.upload-progress {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--deep));
+  padding: 12px 14px;
+  margin: 4px 0 14px;
+  animation: pulse-border 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  50% { border-left-color: color-mix(in srgb, var(--accent) 55%, var(--deep)); }
+}
+
+.upload-progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.upload-progress-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.upload-progress-pct {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.upload-progress-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+/* ============================================================
+   Backup & Restore card
+   ============================================================ */
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.backup-row:first-of-type {
+  margin-top: 6px;
+}
+
+.backup-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.backup-row-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+
+.backup-progress {
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  text-align: right;
+}
+
+.backup-progress > .mono {
+  font-size: 15px;
+  color: var(--accent);
+}
+
+/* ============================================================
    Files
    ============================================================ */
 

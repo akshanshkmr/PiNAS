@@ -17,6 +17,222 @@ function diskStatus(d) {
   return <Badge tone="ok">free</Badge>
 }
 
+function timeAgo(sec) {
+  if (!sec) return 'never'
+  const d = new Date(sec * 1000)
+  const diff = (Date.now() - d.getTime()) / 1000
+  if (diff < 60) return 'just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`
+  return d.toLocaleString()
+}
+
+function BackupCard() {
+  const [status, setStatus] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState('')
+  const [confirmSd, setConfirmSd] = useState('')
+  const [showSdConfirm, setShowSdConfirm] = useState(false)
+
+  async function load() {
+    try {
+      setStatus(await api('/backup/status'))
+    } catch (err) {
+      toast.err(err.detail)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  // Poll while an SD backup is running so the progress meter updates
+  useEffect(() => {
+    if (!status?.sd_backup || status.sd_backup.done) return undefined
+    const t = setInterval(load, 2000)
+    return () => clearInterval(t)
+  }, [status])
+
+  async function runConfigBackup() {
+    setBusy(true)
+    try {
+      const res = await api('/backup/config', { method: 'POST' })
+      toast.ok(`Backed up ${res.files.length} file(s) to ${res.path}`)
+      load()
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runRestore() {
+    if (!status?.restore_available) return
+    setBusy(true)
+    try {
+      const res = await api('/backup/config/restore', {
+        method: 'POST',
+        body: { source: status.restore_available.path, confirm: confirmRestore },
+      })
+      toast.ok(`Restored ${res.restored.length} file(s); Samba restarted`)
+      setConfirmRestore('')
+      load()
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runSdBackup() {
+    setBusy(true)
+    try {
+      await api('/backup/sd', { method: 'POST', body: { confirm: confirmSd } })
+      toast.ok('SD backup started')
+      setShowSdConfirm(false)
+      setConfirmSd('')
+      load()
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!status) {
+    return (
+      <Card eyebrow="backup & restore" title="config + sd image">
+        <p className="field-hint">Reading backup status…</p>
+      </Card>
+    )
+  }
+
+  const lastCfg = status.state?.last_config_backup
+  const lastSd = status.state?.last_sd_backup
+  const restore = status.restore_available
+  const job = status.sd_backup
+  const sdRunning = job && !job.done
+
+  return (
+    <Card
+      eyebrow="backup & restore"
+      title="config + sd image"
+      actions={
+        <>
+          {lastCfg && <Badge tone="ok">config saved {timeAgo(lastCfg.timestamp)}</Badge>}
+          {sdRunning && <Badge tone="accent">sd backup {job.percent}%</Badge>}
+        </>
+      }
+    >
+      <p className="field-hint">
+        Snapshots your Samba shares, users, and mdadm config to a hidden{' '}
+        <code>.pinas-config/</code> folder on the NAS every 24 hours — a fresh install
+        detects it automatically and offers a one-click restore. Optionally, save a full
+        SD-card image as <code>.img.gz</code> so a dying card can be re-flashed exactly.
+      </p>
+
+      {restore && !lastCfg && (
+        <div className="confirm-box confirm-danger" style={{ marginTop: 14 }}>
+          <p>
+            <strong>Restore available.</strong> A configuration backup from{' '}
+            <span className="mono">{restore.manifest.hostname || 'this Pi'}</span> at{' '}
+            {restore.manifest.iso_time?.replace('T', ' ')} is present on the NAS. Applying
+            it will overwrite <span className="mono">/etc/samba/smb.conf</span>, the Samba
+            user database, and <span className="mono">/etc/mdadm/mdadm.conf</span>, then
+            restart Samba.
+          </p>
+          <div className="btn-row">
+            <ConfirmWord word="RESTORE" value={confirmRestore} onChange={setConfirmRestore} />
+            <Btn
+              variant="danger"
+              busy={busy}
+              disabled={confirmRestore.trim().toUpperCase() !== 'RESTORE'}
+              onClick={runRestore}
+            >
+              Restore configuration
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      <div className="backup-row">
+        <div className="backup-row-main">
+          <div className="mono backup-row-title">Configuration backup</div>
+          <div className="field-hint">
+            {lastCfg
+              ? `Last saved ${timeAgo(lastCfg.timestamp)} — ${lastCfg.files.length} file(s) at ${lastCfg.path?.replace('/.pinas-config', '')}`
+              : 'No backups yet. Runs automatically every 24 hours if a NAS location exists.'}
+          </div>
+        </div>
+        <Btn onClick={runConfigBackup} busy={busy} disabled={sdRunning}>
+          Back up now
+        </Btn>
+      </div>
+
+      <div className="backup-row">
+        <div className="backup-row-main">
+          <div className="mono backup-row-title">SD card image</div>
+          <div className="field-hint">
+            {lastSd
+              ? `Last image ${timeAgo(lastSd.timestamp)} · ${fmtBytes(lastSd.size)} compressed`
+              : 'Runs on demand. Slow — expect 15–30 minutes for a 32 GB card.'}
+          </div>
+          {status.sd_images?.length > 0 && (
+            <div className="field-hint mono" style={{ marginTop: 6, fontSize: 11 }}>
+              {status.sd_images.length} image(s) kept · newest {fmtBytes(status.sd_images[0].size)}
+            </div>
+          )}
+        </div>
+        {sdRunning ? (
+          <div className="backup-progress">
+            <div className="mono">{job.percent.toFixed(1)}%</div>
+            <div className="bar">
+              <div className="bar-fill bar-accent" style={{ width: `${job.percent}%` }} />
+            </div>
+            <div className="field-hint mono" style={{ fontSize: 11 }}>
+              {fmtBytes(job.bytes_copied)} / {fmtBytes(job.total_bytes)} ·{' '}
+              {fmtBytes(job.rate_bps)}/s
+            </div>
+          </div>
+        ) : (
+          <Btn onClick={() => setShowSdConfirm(true)}>Back up SD now</Btn>
+        )}
+      </div>
+
+      {showSdConfirm && !sdRunning && (
+        <div className="confirm-box" style={{ marginTop: 14 }}>
+          <p>
+            This clones <span className="mono">/dev/mmcblk0</span> to a compressed{' '}
+            <span className="mono">.img.gz</span> on the NAS. It reads the entire card, so
+            it can take a while and puts load on the CPU. Only one SD backup runs at a
+            time; the previous {`${1}`} image is kept.
+          </p>
+          <div className="btn-row">
+            <ConfirmWord word="BACKUP" value={confirmSd} onChange={setConfirmSd} />
+            <Btn
+              variant="primary"
+              busy={busy}
+              disabled={confirmSd.trim().toUpperCase() !== 'BACKUP'}
+              onClick={runSdBackup}
+            >
+              Start backup
+            </Btn>
+            <Btn variant="ghost" onClick={() => { setShowSdConfirm(false); setConfirmSd('') }}>
+              Cancel
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {job?.done && !job.ok && (
+        <div className="form-error" style={{ marginTop: 12 }}>
+          Last SD backup failed: {job.error}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 function SmartCard() {
   const [drives, setDrives] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -631,6 +847,8 @@ export default function NasTab() {
       <SmartCard />
 
       <SambaCard samba={data.samba} linuxUsers={linuxUsers} onDone={load} />
+
+      <BackupCard />
     </div>
   )
 }

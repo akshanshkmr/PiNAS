@@ -336,6 +336,7 @@ export default function FilesTab() {
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [upProgress, setUpProgress] = useState(null) // {loaded, total, rate, files}
   const [newFolder, setNewFolder] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -477,23 +478,48 @@ export default function FilesTab() {
   async function upload(files) {
     if (!files.length) return
     setUploading(true)
+    // fetch doesn't emit upload progress in browsers; XHR does via
+    // xhr.upload.onprogress, so we hand-roll the request.
+    const form = new FormData()
+    form.append('path', path)
+    for (const f of files) form.append('files', f)
+    const total = files.reduce((n, f) => n + f.size, 0)
+    setUpProgress({ loaded: 0, total, rate: 0, files: files.length, done: 0 })
+
     try {
-      const form = new FormData()
-      form.append('path', path)
-      for (const f of files) form.append('files', f)
-      const res = await fetch('/api/files/upload', {
-        method: 'POST',
-        credentials: 'same-origin',
-        body: form,
+      const started = Date.now()
+      const data = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', '/api/files/upload', true)
+        xhr.withCredentials = true
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return
+          const secs = Math.max(0.1, (Date.now() - started) / 1000)
+          setUpProgress({
+            loaded: e.loaded,
+            total: e.total,
+            rate: e.loaded / secs,
+            files: files.length,
+            done: Math.min(files.length, Math.round((e.loaded / e.total) * files.length)),
+          })
+        }
+        xhr.onload = () => {
+          let body = {}
+          try { body = JSON.parse(xhr.responseText) } catch { /* not JSON */ }
+          if (xhr.status >= 200 && xhr.status < 300) resolve(body)
+          else reject(new Error(body.detail || `Upload failed (HTTP ${xhr.status})`))
+        }
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.onabort = () => reject(new Error('Upload cancelled'))
+        xhr.send(form)
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.detail || 'Upload failed')
-      toast.ok(data.message)
+      toast.ok(data.message || `Uploaded ${files.length} file(s)`)
       refresh()
     } catch (err) {
       toast.err(err.message)
     } finally {
       setUploading(false)
+      setUpProgress(null)
       if (fileInput.current) fileInput.current.value = ''
     }
   }
@@ -622,6 +648,30 @@ export default function FilesTab() {
             </div>
           </div>
         )}
+
+        {upProgress && (() => {
+          const pct = upProgress.total ? (upProgress.loaded / upProgress.total) * 100 : 0
+          return (
+            <div className="upload-progress">
+              <div className="upload-progress-head">
+                <span className="mono upload-progress-title">
+                  Uploading {upProgress.files} file{upProgress.files === 1 ? '' : 's'}
+                </span>
+                <span className="mono upload-progress-pct">{pct.toFixed(1)}%</span>
+              </div>
+              <div className="bar">
+                <div className="bar-fill bar-accent" style={{ width: `${pct}%` }} />
+              </div>
+              <div className="upload-progress-meta mono">
+                {fmtBytes(upProgress.loaded)} / {fmtBytes(upProgress.total)}
+                {upProgress.rate > 0 && <> · {fmtBytes(upProgress.rate)}/s</>}
+                {upProgress.rate > 0 && upProgress.loaded < upProgress.total && (
+                  <> · {Math.max(1, Math.round((upProgress.total - upProgress.loaded) / upProgress.rate))} s left</>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {listing && listing.entries.length > 0 && (
           <div className="files-toolbar">

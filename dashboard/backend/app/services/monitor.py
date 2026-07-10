@@ -9,8 +9,8 @@ from collections import deque
 import humanize
 import psutil
 
-SAMPLE_INTERVAL = 2
-HISTORY_LEN = 150  # 5 minutes at 2s per sample
+SAMPLE_INTERVAL = 1
+HISTORY_LEN = 300  # 5 minutes at 1s per sample
 
 
 class TempSensors:

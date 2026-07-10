@@ -19,7 +19,7 @@ import TerminalTab from './components/TerminalTab'
 import ControlsTab from './components/ControlsTab'
 
 const TABS = [
-  { id: 'system',   label: 'System',   sub: 'live telemetry · every 2 seconds',   path: '/system',   component: SystemTab },
+  { id: 'system',   label: 'System',   sub: 'live telemetry · every second',       path: '/system',   component: SystemTab },
   { id: 'nas',      label: 'Storage',  sub: 'raid · samba shares · smart health', path: '/storage',  component: NasTab },
   { id: 'files',    label: 'Files',    sub: 'browse · upload · preview',          path: '/files',    component: FilesTab },
   { id: 'services', label: 'Services', sub: 'systemd · tailscale',                path: '/services', component: ServicesTab },

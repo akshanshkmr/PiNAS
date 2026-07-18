@@ -96,11 +96,34 @@ def set_exit_node(advertise: bool) -> CmdResult:
     return sudo("tailscale", "set", flag, timeout=30)
 
 
+def _funnel_off_ok(res: CmdResult) -> bool:
+    """Tailscale returns nonzero when we ask it to remove a handler that
+    isn't there — that's the state we're trying to reach anyway."""
+    err = (res.error or res.output or "").lower()
+    return "does not exist" in err or "no such" in err or "no funnel" in err
+
+
 def set_funnel(enabled: bool, path: str = "/s/") -> CmdResult:
     """Expose only the /s/* share path to the public internet via Funnel,
     or tear it down. The admin dashboard stays tailnet-only."""
+    slug = path.rstrip("/") or "/"
+
     if enabled:
         # target: proxy to the local dashboard's public share tree
-        return sudo("tailscale", "funnel", "--bg", f"--set-path={path.rstrip('/')}",
+        return sudo("tailscale", "funnel", "--bg", f"--set-path={slug}",
                     "http://localhost:80" + path, timeout=30)
-    return sudo("tailscale", "funnel", f"--set-path={path.rstrip('/')}", "off", timeout=15)
+
+    # Off path: try to remove our /s handler first — that's the one PiNAS owns.
+    res = sudo("tailscale", "funnel", f"--set-path={slug}", "off", timeout=15)
+    if res.ok or _funnel_off_ok(res):
+        # Also clear any Funnel we may have set on the root path in older setups.
+        sudo("tailscale", "funnel", "--set-path=/", "off", timeout=15)
+        return CmdResult(True, output="Public share links (Funnel) turned off.")
+
+    # If /s wasn't there but Funnel is still on for some other handler
+    # (e.g. root from setup.sh), disable Funnel entirely rather than leave
+    # a stale/confused state on the toggle.
+    fallback = sudo("tailscale", "funnel", "--https=443", "off", timeout=15)
+    if fallback.ok or _funnel_off_ok(fallback):
+        return CmdResult(True, output="Public share links (Funnel) turned off.")
+    return res

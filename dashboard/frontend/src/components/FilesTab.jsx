@@ -7,6 +7,10 @@ const GALLERY_KINDS = ['image', 'video', 'audio']
 
 const RAW = (p) => `/api/files/raw?path=${encodeURIComponent(p)}`
 const DOWNLOAD = (p) => `/api/files/download?path=${encodeURIComponent(p)}`
+const THUMB = (p, s = 240) => `/api/files/thumb?path=${encodeURIComponent(p)}&size=${s}`
+
+const THUMB_KINDS = new Set(['image', 'video'])
+const VIEW_KEY = 'pinas.files.view'
 
 const KIND_GLYPH = { image: '▧', video: '▶', audio: '♪', text: '≡', file: '·' }
 
@@ -86,9 +90,69 @@ function Icon({ name }) {
           <path d="M13 8a5 5 0 0 1-9 3l-1-2" />
         </svg>
       )
+    case 'list-view':
+      return (
+        <svg {...p}>
+          <line x1="4.5" y1="4" x2="14" y2="4" />
+          <line x1="4.5" y1="8" x2="14" y2="8" />
+          <line x1="4.5" y1="12" x2="14" y2="12" />
+          <circle cx="2" cy="4" r="0.7" fill="currentColor" stroke="none" />
+          <circle cx="2" cy="8" r="0.7" fill="currentColor" stroke="none" />
+          <circle cx="2" cy="12" r="0.7" fill="currentColor" stroke="none" />
+        </svg>
+      )
+    case 'grid-view':
+      return (
+        <svg {...p}>
+          <rect x="2" y="2" width="5" height="5" rx="0.5" />
+          <rect x="9" y="2" width="5" height="5" rx="0.5" />
+          <rect x="2" y="9" width="5" height="5" rx="0.5" />
+          <rect x="9" y="9" width="5" height="5" rx="0.5" />
+        </svg>
+      )
+    case 'play':
+      return (
+        <svg {...p} fill="currentColor" stroke="none">
+          <polygon points="4.5 3 12.5 8 4.5 13" />
+        </svg>
+      )
     default:
       return null
   }
+}
+
+function FileTile({ entry, sizeCell, onOpen }) {
+  const showThumb = THUMB_KINDS.has(entry.kind)
+  return (
+    <button className={`tile tile-${entry.kind}`} onClick={onOpen}>
+      <div className="tile-thumb">
+        {showThumb ? (
+          <img
+            src={THUMB(entry.path, 240)}
+            alt=""
+            loading="lazy"
+            className="tile-img"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        ) : (
+          <div className="tile-fallback">
+            <FileIcon kind={entry.kind} />
+          </div>
+        )}
+        {entry.kind === 'video' && (
+          <div className="tile-badge">
+            <Icon name="play" />
+          </div>
+        )}
+      </div>
+      <div className="tile-body">
+        <div className={`tile-name mono ${entry.is_dir ? 'file-dir' : ''}`}>{entry.name}</div>
+        <div className="tile-meta mono">{sizeCell}</div>
+      </div>
+    </button>
+  )
 }
 
 function FileIcon({ kind }) {
@@ -337,6 +401,7 @@ export default function FilesTab() {
   const [preview, setPreview] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [upProgress, setUpProgress] = useState(null) // {loaded, total, rate, files}
+  const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || 'list')
   const [newFolder, setNewFolder] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -437,6 +502,15 @@ export default function FilesTab() {
   function sortArrow(key) {
     if (key !== sortKey) return ''
     return sortDir === 'asc' ? '▲' : '▼'
+  }
+
+  function setViewMode(v) {
+    setView(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      /* private mode: ignore */
+    }
   }
 
   function visibleEntries() {
@@ -686,6 +760,24 @@ export default function FilesTab() {
                 {visible.length} of {listing.entries.length}
               </span>
             )}
+            <div className="view-toggle" role="tablist" aria-label="View mode">
+              <button
+                className={`view-toggle-btn ${view === 'list' ? 'is-active' : ''}`}
+                onClick={() => setViewMode('list')}
+                title="List view"
+                aria-pressed={view === 'list'}
+              >
+                <Icon name="list-view" />
+              </button>
+              <button
+                className={`view-toggle-btn ${view === 'grid' ? 'is-active' : ''}`}
+                onClick={() => setViewMode('grid')}
+                title="Grid view"
+                aria-pressed={view === 'grid'}
+              >
+                <Icon name="grid-view" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -699,7 +791,27 @@ export default function FilesTab() {
           <EmptyState>No files match “{query}”.</EmptyState>
         )}
 
-        {listing && visible.length > 0 && (
+        {listing && visible.length > 0 && view === 'grid' && (
+          <div className="files-grid">
+            {visible.map((entry) => (
+              <FileTile
+                key={entry.path}
+                entry={entry}
+                sizeCell={
+                  entry.is_dir
+                    ? (() => {
+                        const s = sizeCache.current.get(entry.path)
+                        return s && typeof s.size === 'number' ? fmtBytes(s.size) : '…'
+                      })()
+                    : fmtBytes(entry.size)
+                }
+                onOpen={() => open(entry)}
+              />
+            ))}
+          </div>
+        )}
+
+        {listing && visible.length > 0 && view === 'list' && (
           <div className="table-scroll">
             <table className="table files-table">
               <thead>

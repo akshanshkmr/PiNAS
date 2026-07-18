@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from ..security import require_auth
-from ..services import files as filesvc
+from ..services import files as filesvc, thumbs
 
 router = APIRouter(prefix="/files", tags=["files"], dependencies=[Depends(require_auth)])
 
@@ -72,6 +72,16 @@ async def download(path: str = Query(...)):
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Not found.")
     return FileResponse(target, filename=target.name)
+
+
+@router.get("/thumb")
+async def thumb(path: str = Query(...), size: int = Query(240)):
+    result = await asyncio.to_thread(_guard, thumbs.thumb, path, size)
+    if result is None:
+        raise HTTPException(status_code=404, detail="No thumbnail for this file.")
+    data, media = result
+    # cache aggressively — cached filename embeds mtime so a re-encode busts it
+    return Response(content=data, media_type=media, headers={"Cache-Control": "private, max-age=86400"})
 
 
 @router.get("/raw")

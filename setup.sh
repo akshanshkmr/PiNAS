@@ -67,7 +67,7 @@ fi
 
 log "Installing dependencies"
 sudo apt-get install -y curl git ca-certificates apache2 \
-    mdadm samba samba-common smbclient smartmontools
+    mdadm samba samba-common smbclient smartmontools ffmpeg
 
 # ------------------------------------------------------------
 log "Setting up Node.js (for the dashboard frontend build)"

@@ -14,6 +14,7 @@ import Login from './components/Login'
 import SystemTab from './components/SystemTab'
 import NasTab from './components/NasTab'
 import FilesTab from './components/FilesTab'
+import NetworkTab from './components/NetworkTab'
 import ServicesTab from './components/ServicesTab'
 import TerminalTab from './components/TerminalTab'
 import ControlsTab from './components/ControlsTab'
@@ -22,7 +23,8 @@ const TABS = [
   { id: 'system',   label: 'System',   sub: 'live telemetry · every second',       path: '/system',   component: SystemTab },
   { id: 'nas',      label: 'Storage',  sub: 'raid · samba shares · smart health', path: '/storage',  component: NasTab },
   { id: 'files',    label: 'Files',    sub: 'browse · upload · preview',          path: '/files',    component: FilesTab },
-  { id: 'services', label: 'Services', sub: 'systemd · tailscale',                path: '/services', component: ServicesTab },
+  { id: 'network',  label: 'Network',  sub: 'lan · tailscale · funnel · vpn',     path: '/network',  component: NetworkTab },
+  { id: 'services', label: 'Services', sub: 'systemd units',                      path: '/services', component: ServicesTab },
   { id: 'terminal', label: 'Terminal', sub: 'bash login shell',                   path: '/terminal', component: TerminalTab },
   { id: 'controls', label: 'Controls', sub: 'power · updates · case · fans',      path: '/controls', component: ControlsTab },
 ]
@@ -56,6 +58,15 @@ function TabIcon({ id }) {
       return (
         <svg {...p}>
           <path d="M1.8 4.3a1 1 0 0 1 1-1h3.1l1.4 1.5h6.4a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z" />
+        </svg>
+      )
+    case 'network': // globe with latitude/longitude lines
+      return (
+        <svg {...p}>
+          <circle cx="8" cy="8" r="6" />
+          <ellipse cx="8" cy="8" rx="3" ry="6" />
+          <line x1="2" y1="8" x2="14" y2="8" />
+          <line x1="8" y1="2" x2="8" y2="14" />
         </svg>
       )
     case 'services': // stacked servers with status LEDs

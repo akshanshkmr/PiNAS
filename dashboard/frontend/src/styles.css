@@ -1669,26 +1669,96 @@ input[type='range']:disabled {
 }
 
 .tile {
-  appearance: none;
+  position: relative;
   background: none;
   border: 1px solid var(--line);
   border-radius: 3px;
-  padding: 0;
-  cursor: pointer;
-  text-align: left;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: border-color 0.14s ease, transform 0.14s ease;
+  transition: border-color 0.14s ease;
 }
 
 .tile:hover {
   border-color: var(--accent);
 }
 
-.tile:focus-visible {
+.tile.is-confirming {
+  border-color: var(--crit);
+}
+
+.tile-main {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  font: inherit;
+}
+
+.tile-main:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* action row overlays the top-right of the thumb. Always visible on touch,
+   fades in on hover on precise pointers so the thumbnail can breathe. */
+.tile-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(4px);
+  opacity: 1;
+  transition: opacity 0.14s ease;
+  z-index: 2;
+}
+
+@media (hover: hover) {
+  .tile-actions {
+    opacity: 0;
+  }
+  .tile:hover .tile-actions,
+  .tile:focus-within .tile-actions,
+  .tile.is-confirming .tile-actions {
+    opacity: 1;
+  }
+}
+
+.tile-action {
+  appearance: none;
+  border: none;
+  background: none;
+  color: #dbe4f2;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tile-action:hover {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: #fff;
+}
+
+.tile-action.danger:hover {
+  background: color-mix(in srgb, var(--crit) 30%, transparent);
+}
+
+.tile-action svg {
+  width: 14px;
+  height: 14px;
 }
 
 .tile-thumb {

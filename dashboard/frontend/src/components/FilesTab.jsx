@@ -240,8 +240,8 @@ function ShareDialog({ entry, onClose }) {
               />
               <p className="field-hint">
                 {publicOn
-                  ? 'Anyone with the link can open it over the internet. Funnel must be enabled in Services.'
-                  : 'The link works from your LAN or tailnet. Not reachable from the public internet.'}
+                  ? 'Anyone with the link can open it over the public internet. Turn on Funnel in the Network tab first (Public share links).'
+                  : 'The link works only from your LAN or tailnet — not reachable from the public internet.'}
               </p>
               <div className="btn-row">
                 <Btn variant="primary" busy={busy} onClick={create}>
@@ -307,37 +307,77 @@ function ShareDialog({ entry, onClose }) {
   )
 }
 
-function FileTile({ entry, sizeCell, onOpen }) {
+function FileTile({
+  entry,
+  sizeCell,
+  onOpen,
+  onShare,
+  onDeleteRequest,
+  onDeleteConfirm,
+  onDeleteCancel,
+  confirmingDelete,
+}) {
   const showThumb = THUMB_KINDS.has(entry.kind)
   return (
-    <button className={`tile tile-${entry.kind}`} onClick={onOpen}>
-      <div className="tile-thumb">
-        {showThumb ? (
-          <img
-            src={THUMB(entry.path, 240)}
-            alt=""
-            loading="lazy"
-            className="tile-img"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none'
-            }}
-          />
+    <div className={`tile tile-${entry.kind} ${confirmingDelete ? 'is-confirming' : ''}`}>
+      <button className="tile-main" onClick={onOpen}>
+        <div className="tile-thumb">
+          {showThumb ? (
+            <img
+              src={THUMB(entry.path, 240)}
+              alt=""
+              loading="lazy"
+              className="tile-img"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+              }}
+            />
+          ) : (
+            <div className="tile-fallback">
+              <FileIcon kind={entry.kind} />
+            </div>
+          )}
+          {entry.kind === 'video' && (
+            <div className="tile-badge">
+              <Icon name="play" />
+            </div>
+          )}
+        </div>
+        <div className="tile-body">
+          <div className={`tile-name mono ${entry.is_dir ? 'file-dir' : ''}`}>{entry.name}</div>
+          <div className="tile-meta mono">{sizeCell}</div>
+        </div>
+      </button>
+      <div className="tile-actions" onClick={(e) => e.stopPropagation()}>
+        {confirmingDelete ? (
+          <>
+            <button className="tile-action danger" onClick={onDeleteConfirm} title="Confirm delete">
+              <Icon name="check" />
+            </button>
+            <button className="tile-action" onClick={onDeleteCancel} title="Cancel">
+              <Icon name="x" />
+            </button>
+          </>
         ) : (
-          <div className="tile-fallback">
-            <FileIcon kind={entry.kind} />
-          </div>
-        )}
-        {entry.kind === 'video' && (
-          <div className="tile-badge">
-            <Icon name="play" />
-          </div>
+          <>
+            <button className="tile-action" onClick={onShare} title={`Share ${entry.name}`}>
+              <Icon name="share" />
+            </button>
+            <a
+              className="tile-action"
+              href={DOWNLOAD(entry.path)}
+              onClick={(e) => e.stopPropagation()}
+              title={entry.is_dir ? 'Download folder as .zip' : 'Download'}
+            >
+              <Icon name="download" />
+            </a>
+            <button className="tile-action" onClick={onDeleteRequest} title={`Delete ${entry.name}`}>
+              <Icon name="trash" />
+            </button>
+          </>
         )}
       </div>
-      <div className="tile-body">
-        <div className={`tile-name mono ${entry.is_dir ? 'file-dir' : ''}`}>{entry.name}</div>
-        <div className="tile-meta mono">{sizeCell}</div>
-      </div>
-    </button>
+    </div>
   )
 }
 
@@ -993,6 +1033,11 @@ export default function FilesTab() {
                     : fmtBytes(entry.size)
                 }
                 onOpen={() => open(entry)}
+                onShare={() => setShareFor(entry)}
+                onDeleteRequest={() => setConfirmDelete(entry.path)}
+                onDeleteConfirm={() => doDelete(entry)}
+                onDeleteCancel={() => setConfirmDelete(null)}
+                confirmingDelete={confirmDelete === entry.path}
               />
             ))}
           </div>

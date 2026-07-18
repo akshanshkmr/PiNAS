@@ -1563,6 +1563,64 @@ input[type='range']:disabled {
 }
 
 /* ============================================================
+   Files: Share dialog
+   ============================================================ */
+
+.share-box {
+  width: min(680px, 92vw);
+  max-height: 90vh;
+}
+
+.share-body {
+  padding: 18px 22px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.share-created {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--deep));
+}
+
+.share-created .copy-row {
+  margin: 8px 0 10px;
+}
+
+.share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--deep);
+}
+
+.share-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.share-row-url {
+  font-size: 12px;
+  color: var(--accent);
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+/* ============================================================
    Files: grid view + view toggle
    ============================================================ */
 

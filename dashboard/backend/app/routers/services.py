@@ -49,3 +49,30 @@ async def tailscale_connection(body: ConnectionRequest):
     if not res.ok:
         raise HTTPException(status_code=500, detail=res.error)
     return {"ok": True, "message": "Tailscale connected." if body.connect else "Tailscale disconnected."}
+
+
+class ToggleRequest(BaseModel):
+    enabled: bool
+
+
+@router.put("/tailscale/exit-node")
+async def tailscale_exit_node(body: ToggleRequest):
+    res = await asyncio.to_thread(tailscale.set_exit_node, body.enabled)
+    if not res.ok:
+        raise HTTPException(status_code=500, detail=res.error)
+    msg = ("This Pi is now advertising as an exit node. Approve it in the "
+           "tailnet admin console to let devices route through it.") if body.enabled \
+          else "Exit-node advertisement disabled."
+    return {"ok": True, "message": msg}
+
+
+@router.put("/tailscale/funnel")
+async def tailscale_funnel(body: ToggleRequest):
+    res = await asyncio.to_thread(tailscale.set_funnel, body.enabled)
+    if not res.ok:
+        raise HTTPException(status_code=500, detail=res.error)
+    return {
+        "ok": True,
+        "message": "Funnel exposing /s/ to the public internet."
+                   if body.enabled else "Funnel for /s/ turned off.",
+    }

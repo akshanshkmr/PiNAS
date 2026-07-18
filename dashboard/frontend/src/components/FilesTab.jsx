@@ -116,9 +116,195 @@ function Icon({ name }) {
           <polygon points="4.5 3 12.5 8 4.5 13" />
         </svg>
       )
+    case 'share':
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="3.5" r="1.8" />
+          <circle cx="4" cy="8" r="1.8" />
+          <circle cx="12" cy="12.5" r="1.8" />
+          <line x1="5.5" y1="7.1" x2="10.5" y2="4.4" />
+          <line x1="5.5" y1="8.9" x2="10.5" y2="11.6" />
+        </svg>
+      )
     default:
       return null
   }
+}
+
+function ShareDialog({ entry, onClose }) {
+  const [ttl, setTtl] = useState('86400')
+  const [password, setPassword] = useState('')
+  const [publicOn, setPublicOn] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [created, setCreated] = useState(null)
+  const [existing, setExisting] = useState([])
+  const [copyState, setCopyState] = useState('')
+
+  useEffect(() => {
+    api('/shares').then((d) => setExisting(d.shares.filter((s) => s.path === entry.path)))
+      .catch(() => {})
+  }, [entry.path])
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  async function create() {
+    setBusy(true)
+    try {
+      const res = await api('/shares', {
+        method: 'POST',
+        body: {
+          path: entry.path,
+          ttl_seconds: ttl === '0' ? null : Number(ttl),
+          mode: 'view',
+          public: publicOn,
+          password: password || null,
+          label: entry.name,
+        },
+      })
+      setCreated(res.share)
+      setExisting((prev) => [res.share, ...prev])
+      toast.ok('Share link created')
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function revoke(token) {
+    try {
+      await api(`/shares/${token}`, { method: 'DELETE' })
+      setExisting((prev) => prev.filter((s) => s.token !== token))
+      if (created?.token === token) setCreated(null)
+      toast.ok('Share revoked')
+    } catch (err) {
+      toast.err(err.detail)
+    }
+  }
+
+  function shareUrl(s) {
+    return `${window.location.origin}${s.url_path}`
+  }
+
+  async function copy(url) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopyState('copied')
+      setTimeout(() => setCopyState(''), 1400)
+    } catch {
+      setCopyState('select')
+    }
+  }
+
+  return (
+    <div className="preview-overlay" onClick={onClose}>
+      <div className="preview-box share-box" onClick={(e) => e.stopPropagation()}>
+        <span className="tick tick-tl" aria-hidden="true" />
+        <span className="tick tick-tr" aria-hidden="true" />
+        <span className="tick tick-bl" aria-hidden="true" />
+        <span className="tick tick-br" aria-hidden="true" />
+        <header className="preview-head">
+          <span className="mono preview-name">Share · {entry.name}</span>
+          <Btn variant="ghost" onClick={onClose}>Close</Btn>
+        </header>
+        <div className="share-body">
+          {!created && (
+            <div className="stack">
+              <Field label="Expires">
+                <select className="input" value={ttl} onChange={(e) => setTtl(e.target.value)}>
+                  <option value="3600">In 1 hour</option>
+                  <option value="86400">In 24 hours</option>
+                  <option value="604800">In 7 days</option>
+                  <option value="2592000">In 30 days</option>
+                  <option value="0">Never</option>
+                </select>
+              </Field>
+              <Field label="Password (optional)">
+                <input
+                  className="input mono"
+                  type="password"
+                  value={password}
+                  placeholder="Leave blank for no password"
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="off"
+                />
+              </Field>
+              <Toggle
+                label="Make public via Tailscale Funnel"
+                checked={publicOn}
+                onChange={setPublicOn}
+              />
+              <p className="field-hint">
+                {publicOn
+                  ? 'Anyone with the link can open it over the internet. Funnel must be enabled in Services.'
+                  : 'The link works from your LAN or tailnet. Not reachable from the public internet.'}
+              </p>
+              <div className="btn-row">
+                <Btn variant="primary" busy={busy} onClick={create}>
+                  Create share link
+                </Btn>
+              </div>
+            </div>
+          )}
+          {created && (
+            <div className="share-created">
+              <div className="field-label group-label">Your share link</div>
+              <div className="copy-row">
+                <code className="copy-value">{shareUrl(created)}</code>
+                <Btn variant="primary" onClick={() => copy(shareUrl(created))}>
+                  {copyState === 'copied' ? 'Copied!' : 'Copy'}
+                </Btn>
+              </div>
+              <p className="field-hint">
+                Expires:{' '}
+                {created.expires_at
+                  ? new Date(created.expires_at * 1000).toLocaleString()
+                  : 'never'}
+                {created.has_password && ' · password-protected'}
+                {created.public && ' · exposed to the public internet'}
+              </p>
+              <div className="btn-row">
+                <Btn variant="ghost" onClick={() => setCreated(null)}>Create another</Btn>
+                <Btn variant="danger-ghost" onClick={() => revoke(created.token)}>Revoke</Btn>
+              </div>
+            </div>
+          )}
+
+          {existing.length > 0 && (
+            <div className="share-existing">
+              <div className="field-label group-label">Active links for this item</div>
+              <div className="share-list">
+                {existing.map((s) => (
+                  <div key={s.token} className="share-row">
+                    <div className="share-row-main">
+                      <div className="mono share-row-url">{shareUrl(s)}</div>
+                      <div className="field-hint">
+                        {s.expires_at
+                          ? `expires ${new Date(s.expires_at * 1000).toLocaleString()}`
+                          : 'never expires'}
+                        {' · '}
+                        {s.hits} hit{s.hits === 1 ? '' : 's'}
+                        {s.public && ' · public'}
+                        {s.has_password && ' · password'}
+                      </div>
+                    </div>
+                    <div className="btn-row" style={{ marginTop: 0 }}>
+                      <Btn variant="ghost" onClick={() => copy(shareUrl(s))}>Copy</Btn>
+                      <Btn variant="danger-ghost" onClick={() => revoke(s.token)}>Revoke</Btn>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function FileTile({ entry, sizeCell, onOpen }) {
@@ -405,6 +591,7 @@ export default function FilesTab() {
   const [newFolder, setNewFolder] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [shareFor, setShareFor] = useState(null)
   const fileInput = useRef(null)
   // recursive folder sizes, computed lazily and cached across navigation
   const sizeCache = useRef(new Map())
@@ -846,6 +1033,13 @@ export default function FilesTab() {
                     <td className="num mono tone-muted">{sizeCell(entry)}</td>
                     <td className="mono tone-muted file-date">{fmtDate(entry.mtime)}</td>
                     <td className="file-actions">
+                      <button
+                        className="icon-btn"
+                        onClick={() => setShareFor(entry)}
+                        title={`Share ${entry.name}`}
+                      >
+                        <Icon name="share" />
+                      </button>
                       <a
                         className="icon-btn"
                         href={DOWNLOAD(entry.path)}
@@ -883,6 +1077,7 @@ export default function FilesTab() {
       {preview && (
         <Preview items={preview.items} initialIndex={preview.index} onClose={() => setPreview(null)} />
       )}
+      {shareFor && <ShareDialog entry={shareFor} onClose={() => setShareFor(null)} />}
     </div>
   )
 }

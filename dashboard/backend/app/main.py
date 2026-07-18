@@ -11,8 +11,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routers import auth, backup, controls, files, nas, services, system, terminal
-from .services import backups
+from .routers import auth, backup, controls, files, nas, public, services, shares as shares_router, system, terminal
+from .services import backups, shares as shares_svc
 from .services.monitor import monitor
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
@@ -21,6 +21,7 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "di
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     monitor.start()
+    shares_svc.init()
     backup_task = asyncio.create_task(backups.daily_config_backup_loop())
     yield
     backup_task.cancel()
@@ -38,8 +39,14 @@ for router in (
     services.router,
     terminal.router,
     backup.router,
+    shares_router.router,
 ):
     app.include_router(router, prefix="/api")
+
+# Public share viewer at /s/{token} — no auth, mounted at the site root so
+# `tailscale funnel --set-path=/s` can expose only this subtree publicly.
+# Registered BEFORE the SPA catch-all so it isn't shadowed.
+app.include_router(public.router)
 
 
 if FRONTEND_DIST.is_dir():

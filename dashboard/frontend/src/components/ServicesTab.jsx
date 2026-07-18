@@ -58,6 +58,32 @@ function TailscalePanel() {
     }
   }
 
+  async function setExitNode(enabled) {
+    setBusy(true)
+    try {
+      const res = await api('/services/tailscale/exit-node', { method: 'PUT', body: { enabled } })
+      toast.ok(res.message)
+      await load()
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function setFunnel(enabled) {
+    setBusy(true)
+    try {
+      const res = await api('/services/tailscale/funnel', { method: 'PUT', body: { enabled } })
+      toast.ok(res.message)
+      await load()
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (!ts) {
     return (
       <Panel label="tailscale" meta="remote access">
@@ -105,6 +131,42 @@ function TailscalePanel() {
           />
         )}
       </div>
+
+      {running && (
+        <div className="control-line">
+          <span className="control-line-label">
+            Exit node (VPN)
+            <span className="sub">
+              Route other tailnet devices' internet traffic through this Pi. Approve in the
+              tailnet admin console after enabling.
+            </span>
+          </span>
+          <Toggle
+            label={ts.exit_node ? 'Advertising' : 'Off'}
+            checked={!!ts.exit_node}
+            disabled={busy}
+            onChange={setExitNode}
+          />
+        </div>
+      )}
+
+      {running && (
+        <div className="control-line">
+          <span className="control-line-label">
+            Public share links (Funnel)
+            <span className="sub">
+              Exposes only /s/* to the public internet so share links work off-tailnet. Admin
+              UI stays tailnet-only.
+            </span>
+          </span>
+          <Toggle
+            label={ts.funnel?.enabled ? 'Enabled' : 'Off'}
+            checked={!!ts.funnel?.enabled}
+            disabled={busy}
+            onChange={setFunnel}
+          />
+        </div>
+      )}
 
       {running && (
         <div className="access-block">

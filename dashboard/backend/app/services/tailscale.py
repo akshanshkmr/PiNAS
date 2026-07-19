@@ -15,8 +15,10 @@ def _status_json():
 
 
 def _serve_url(res):
-    res_json = run("tailscale", "serve", "status", timeout=10)
-    if not res_json.ok or not res_json.output or "no serve config" in res_json.output.lower():
+    r = run("tailscale", "serve", "status", timeout=10)
+    if not r.ok:
+        r = sudo("tailscale", "serve", "status", timeout=10)
+    if not r.ok or not r.output or "no serve config" in r.output.lower():
         return None
     return True  # serving something; URL is derived from the node's DNS name
 
@@ -39,19 +41,34 @@ def _exit_node_advertised() -> bool:
 
 def _funnel_status():
     """Return (enabled, published_paths). Funnel exposes serve to the public
-    internet, so a running Funnel means share links work off-tailnet."""
-    r = run("tailscale", "funnel", "status", timeout=8)
+    internet, so a running Funnel means share links work off-tailnet.
+
+    We prefer `tailscale serve status --json` because it always includes
+    both Web (serve) and Funnel state as structured data. Text parsing
+    of `tailscale funnel status` was fragile — the CLI's phrasing has
+    varied ("no funnel", "not currently serving", empty output on newer
+    builds), and the socket is often root-only so the non-sudo probe
+    silently reports "off"."""
+    r = run("tailscale", "serve", "status", "--json", timeout=8)
+    if not r.ok:
+        r = sudo("tailscale", "serve", "status", "--json", timeout=8)
     if not r.ok or not r.output:
         return False, []
-    text = r.output
-    if "no funnel" in text.lower() or "not enabled" in text.lower():
+    try:
+        cfg = json.loads(r.output)
+    except json.JSONDecodeError:
         return False, []
-    # published paths appear as lines like "https://host/ (Funnel on)"
-    paths = []
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("|--"):
-            paths.append(line.split("|--", 1)[1].strip())
+
+    # Funnel is keyed by "<host>:<port>" → true. Any true entry means on.
+    allow = cfg.get("AllowFunnel") or {}
+    enabled = any(bool(v) for v in allow.values())
+    if not enabled:
+        return False, []
+
+    paths: list[str] = []
+    for host_port, web in (cfg.get("Web") or {}).items():
+        for path in (web.get("Handlers") or {}).keys():
+            paths.append(f"https://{host_port.split(':', 1)[0]}{path}")
     return True, paths
 
 

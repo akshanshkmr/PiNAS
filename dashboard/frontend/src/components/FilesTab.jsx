@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, fmtBytes } from '../api'
+import { api, copyText, fmtBytes } from '../api'
 import { toast } from '../toast'
 import { Badge, Btn, EmptyState, Field, Panel, Toggle } from './ui'
 
@@ -191,12 +191,12 @@ function ShareDialog({ entry, onClose }) {
   }
 
   async function copy(url) {
-    try {
-      await navigator.clipboard.writeText(url)
+    if (await copyText(url)) {
       setCopyState('copied')
       setTimeout(() => setCopyState(''), 1400)
-    } catch {
+    } else {
       setCopyState('select')
+      toast.err('Couldn’t copy — select the link and copy manually.')
     }
   }
 

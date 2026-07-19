@@ -111,19 +111,23 @@ def _gallery_context(share, target, slideshow: bool):
         idx = paths.index(str(target))
     except ValueError:
         return None
-    prev_idx = idx - 1 if idx > 0 else None
-    next_idx = idx + 1 if idx + 1 < len(paths) else None
+    items = [
+        {
+            "path": e["path"],
+            "name": e["name"],
+            "kind": e["kind"],
+            "raw": f"/s/{share.token}/raw?p={quote(e['path'])}",
+            "download": f"/s/{share.token}/download?p={quote(e['path'])}",
+            "viewer": _viewer_url(share.token, e["path"]),
+        }
+        for e in gallery
+    ]
     return {
         "token": share.token,
         "back": _viewer_url(share.token, str(parent)),
-        "prev": _viewer_url(share.token, paths[prev_idx], slideshow) if prev_idx is not None else None,
-        "next": _viewer_url(share.token, paths[next_idx], slideshow) if next_idx is not None else None,
-        # Slideshow always advances (wraps) so it never dead-ends on the last item.
-        "loop_next": _viewer_url(share.token, paths[(idx + 1) % len(paths)], slideshow=True),
-        "toggle": _viewer_url(share.token, str(target), slideshow=not slideshow),
         "index": idx,
-        "total": len(paths),
-        "kind": gallery[idx]["kind"],
+        "total": len(items),
+        "items": items,
         "slideshow": slideshow,
     }
 
@@ -310,101 +314,153 @@ async def viewer(token: str, request: Request, subpath: str | None = Query(defau
     kind = filesvc._kind(target)
     raw_url = f"/s/{s.token}/raw?p={quote(str(target))}"
     dl_url = f"/s/{s.token}/download?p={quote(str(target))}"
-    if kind == "image":
-        preview = f'<img class="hero" src="{raw_url}" alt=""/>'
-    elif kind == "video":
-        preview = f'<video id="mediaEl" src="{raw_url}" controls autoplay style="max-height:78vh"></video>'
-    elif kind == "audio":
-        preview = f'<audio src="{raw_url}" controls autoplay></audio>'
-    else:
-        preview = f'<div class="card">Preview not available. Download the file to open it.</div>'
 
     ctx = _gallery_context(s, target, bool(slideshow))
-    navbar = ""
-    slideshow_js = ""
-    if ctx:
-        prev_cls = "" if ctx["prev"] else "is-off"
-        next_cls = "" if ctx["next"] else "is-off"
-        prev_href = ctx["prev"] or "#"
-        next_href = ctx["next"] or "#"
-        ss_label = "⏸ Pause" if ctx["slideshow"] else "▶ Slideshow"
-        navbar = f"""
-          <div class="navbar">
-            <a class="action" href="{ctx['back']}">← Folder</a>
-            <span class="spacer"></span>
-            <a class="action {prev_cls}" href="{prev_href}">← Prev</a>
-            <a class="action {next_cls}" href="{next_href}">Next →</a>
-            <a class="action" href="{ctx['toggle']}">{ss_label}</a>
-            <a class="action" href="#" id="fsBtn">⛶ Fullscreen</a>
-            <span class="counter">{ctx['index'] + 1} / {ctx['total']}</span>
+
+    # Non-gallery media (audio, plain files) still gets the simple, non-JS view.
+    if not ctx:
+        if kind == "image":
+            preview = f'<img class="hero" src="{raw_url}" alt=""/>'
+        elif kind == "video":
+            preview = f'<video src="{raw_url}" controls autoplay style="max-height:78vh"></video>'
+        elif kind == "audio":
+            preview = f'<audio src="{raw_url}" controls autoplay></audio>'
+        else:
+            preview = '<div class="card">Preview not available. Download the file to open it.</div>'
+        body = f"""
+          <h1>{html.escape(target.name)}</h1>
+          <div class="sub">{_pretty_bytes(target.stat().st_size)}</div>
+          <div class="card">{preview}
+            <div style="margin-top:14px">
+              <a class="action" href="{dl_url}">Download</a>
+            </div>
           </div>
         """
-        # keyboard: ← → for prev/next, Esc = back
-        js_ctx = jsonlib.dumps({
-            "back": ctx["back"], "prev": ctx["prev"], "next": ctx["next"],
-            "loopNext": ctx["loop_next"], "slideshow": ctx["slideshow"],
-            "kind": ctx["kind"],
-        }).replace("</", "<\\/")  # defuse premature </script> if a path ever contains one
-        slideshow_js = f"""
-          <script>
-            (function() {{
-              const g = {js_ctx};
-              const FS_KEY = 'pinas.fs';
-              const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
-              const enterFs = () => {{
-                const el = document.body;
-                (el.requestFullscreen || el.webkitRequestFullscreen || function(){{}}).call(el);
-              }};
-              const exitFs = () => {{
-                (document.exitFullscreen || document.webkitExitFullscreen || function(){{}}).call(document);
-              }};
-              const btn = document.getElementById('fsBtn');
-              if (btn) btn.addEventListener('click', function(e) {{
-                e.preventDefault();
-                if (isFs()) {{ sessionStorage.removeItem(FS_KEY); exitFs(); }}
-                else {{ sessionStorage.setItem(FS_KEY, '1'); enterFs(); }}
-              }});
-              // Persist fullscreen across Prev/Next reloads by re-entering after load.
-              if (sessionStorage.getItem(FS_KEY) === '1' && !isFs()) {{
-                const reenter = () => {{ enterFs(); ['click','keydown','touchstart'].forEach(t => document.removeEventListener(t, reenter)); }};
-                ['click','keydown','touchstart'].forEach(t => document.addEventListener(t, reenter, {{ once: true }}));
-              }}
-              document.addEventListener('fullscreenchange', function() {{
-                if (btn) btn.textContent = isFs() ? '⛶ Exit' : '⛶ Fullscreen';
-              }});
+        return _page_shell(target.name, body)
 
-              window.addEventListener('keydown', function(e) {{
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-                if (e.key === 'ArrowLeft' && g.prev) {{ e.preventDefault(); location.href = g.prev; }}
-                else if (e.key === 'ArrowRight' && g.next) {{ e.preventDefault(); location.href = g.next; }}
-                else if (e.key === 'Escape' && !isFs() && g.back) {{ e.preventDefault(); location.href = g.back; }}
-                else if ((e.key === 'f' || e.key === 'F') && btn) {{ e.preventDefault(); btn.click(); }}
-              }});
-              if (g.slideshow) {{
-                if (g.kind === 'image') {{
-                  // still images: advance every 4s (wraps back to the first)
-                  setTimeout(function() {{ location.href = g.loopNext; }}, 4000);
-                }} else if (g.kind === 'video') {{
-                  // video: advance when playback finishes
-                  const v = document.getElementById('mediaEl');
-                  if (v) v.addEventListener('ended', function() {{ location.href = g.loopNext; }});
-                }}
-              }}
-            }})();
-          </script>
-        """
-
+    # Gallery view — client-side navigation keeps fullscreen intact and
+    # avoids a full-page reload between slideshow frames.
+    ss_label = "⏸ Pause" if ctx["slideshow"] else "▶ Slideshow"
+    navbar = f"""
+      <div class="navbar">
+        <a class="action" href="{ctx['back']}">← Folder</a>
+        <span class="spacer"></span>
+        <a class="action" href="#" id="prevBtn">← Prev</a>
+        <a class="action" href="#" id="nextBtn">Next →</a>
+        <a class="action" href="#" id="ssBtn">{ss_label}</a>
+        <a class="action" href="#" id="fsBtn">⛶ Fullscreen</a>
+        <span class="counter"><span id="counter">{ctx['index'] + 1} / {ctx['total']}</span></span>
+      </div>
+    """
+    js_ctx = jsonlib.dumps({
+        "token": ctx["token"],
+        "back": ctx["back"],
+        "items": ctx["items"],
+        "index": ctx["index"],
+        "slideshow": ctx["slideshow"],
+    }).replace("</", "<\\/")
     body = f"""
       {navbar}
-      <h1>{html.escape(target.name)}</h1>
-      <div class="sub">{_pretty_bytes(target.stat().st_size)}</div>
-      <div class="card">{preview}
+      <h1 id="heroName">{html.escape(target.name)}</h1>
+      <div class="sub" id="heroMeta">{_pretty_bytes(target.stat().st_size)}</div>
+      <div class="card" id="heroCard">
+        <img id="heroImg" class="hero" alt="" style="display:none"/>
+        <video id="heroVid" controls style="max-height:78vh;display:none"></video>
         <div style="margin-top:14px">
-          <a class="action" href="{dl_url}">Download</a>
+          <a class="action" id="dlBtn" href="{dl_url}">Download</a>
         </div>
       </div>
-      {'<div class="kbdhint"><kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> back to folder</div>' if ctx else ''}
-      {slideshow_js}
+      <div class="kbdhint"><kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>F</kbd> fullscreen · <kbd>Space</kbd> play/pause · <kbd>Esc</kbd> back</div>
+      <script>
+        (function() {{
+          const g = {js_ctx};
+          let cur = g.index;
+          const items = g.items;
+          const heroImg = document.getElementById('heroImg');
+          const heroVid = document.getElementById('heroVid');
+          const heroName = document.getElementById('heroName');
+          const dlBtn = document.getElementById('dlBtn');
+          const counter = document.getElementById('counter');
+          const ssBtn = document.getElementById('ssBtn');
+          const fsBtn = document.getElementById('fsBtn');
+          let slideshow = !!g.slideshow;
+          let ssTimer = null;
+
+          function preload(i) {{
+            const it = items[(i + items.length) % items.length];
+            if (it.kind === 'image') {{ const img = new Image(); img.src = it.raw; }}
+          }}
+          function render() {{
+            const it = items[cur];
+            heroName.textContent = it.name;
+            dlBtn.href = it.download;
+            counter.textContent = (cur + 1) + ' / ' + items.length;
+            // Reflect the current item in the URL so refresh + link-copy still work.
+            const qs = new URLSearchParams(location.search);
+            qs.set('p', it.path);
+            if (slideshow) qs.set('slideshow', '1'); else qs.delete('slideshow');
+            history.replaceState(null, '', location.pathname + '?' + qs.toString());
+            document.title = it.name + ' — PiNAS';
+            if (it.kind === 'image') {{
+              heroVid.pause();
+              heroVid.removeAttribute('src');
+              heroVid.style.display = 'none';
+              heroImg.style.display = '';
+              heroImg.src = it.raw;
+            }} else {{
+              heroImg.removeAttribute('src');
+              heroImg.style.display = 'none';
+              heroVid.style.display = '';
+              heroVid.src = it.raw;
+              heroVid.play().catch(() => {{}});
+            }}
+            preload(cur + 1);
+          }}
+          function go(delta) {{ cur = (cur + delta + items.length) % items.length; render(); scheduleSs(); }}
+
+          function scheduleSs() {{
+            if (ssTimer) {{ clearTimeout(ssTimer); ssTimer = null; }}
+            if (!slideshow) return;
+            const it = items[cur];
+            if (it.kind === 'image') {{
+              ssTimer = setTimeout(() => go(1), 4000);
+            }}
+            // videos advance on 'ended' (wired once below)
+          }}
+          heroVid.addEventListener('ended', () => {{ if (slideshow) go(1); }});
+
+          function setSlideshow(on) {{
+            slideshow = on;
+            ssBtn.textContent = on ? '⏸ Pause' : '▶ Slideshow';
+            const qs = new URLSearchParams(location.search);
+            if (on) qs.set('slideshow', '1'); else qs.delete('slideshow');
+            history.replaceState(null, '', location.pathname + '?' + qs.toString());
+            scheduleSs();
+          }}
+
+          document.getElementById('prevBtn').addEventListener('click', e => {{ e.preventDefault(); go(-1); }});
+          document.getElementById('nextBtn').addEventListener('click', e => {{ e.preventDefault(); go(1); }});
+          ssBtn.addEventListener('click', e => {{ e.preventDefault(); setSlideshow(!slideshow); }});
+
+          const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+          const enterFs = () => {{ const el = document.body; (el.requestFullscreen || el.webkitRequestFullscreen || function(){{}}).call(el); }};
+          const exitFs = () => {{ (document.exitFullscreen || document.webkitExitFullscreen || function(){{}}).call(document); }};
+          fsBtn.addEventListener('click', e => {{ e.preventDefault(); if (isFs()) exitFs(); else enterFs(); }});
+          document.addEventListener('fullscreenchange', () => {{ fsBtn.textContent = isFs() ? '⛶ Exit' : '⛶ Fullscreen'; }});
+
+          window.addEventListener('keydown', e => {{
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'ArrowLeft') {{ e.preventDefault(); go(-1); }}
+            else if (e.key === 'ArrowRight') {{ e.preventDefault(); go(1); }}
+            else if (e.key === 'Escape' && !isFs()) {{ e.preventDefault(); location.href = g.back; }}
+            else if (e.key === 'f' || e.key === 'F') {{ e.preventDefault(); fsBtn.click(); }}
+            else if (e.key === ' ') {{ e.preventDefault(); setSlideshow(!slideshow); }}
+          }});
+
+          render();
+          scheduleSs();
+        }})();
+      </script>
     """
     return _page_shell(target.name, body)
 

@@ -63,6 +63,7 @@ function CopyRow({ label, value, hint }) {
 function TailscalePanel() {
   const [ts, setTs] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [authUrl, setAuthUrl] = useState(null)
 
   async function load() {
     try {
@@ -75,6 +76,56 @@ function TailscalePanel() {
   useEffect(() => {
     load()
   }, [])
+
+  // Once we've handed the user an auth URL, poll status so the toggle flips
+  // to "Connected" the moment the browser flow finishes — no manual refresh.
+  useEffect(() => {
+    if (!authUrl && ts?.state !== 'NeedsLogin') return
+    const id = setInterval(async () => {
+      try {
+        const next = await api('/services/tailscale')
+        setTs(next)
+        if (next.state === 'Running') {
+          setAuthUrl(null)
+          clearInterval(id)
+          toast.ok('Tailscale connected.')
+        }
+      } catch { /* transient — keep polling */ }
+    }, 2500)
+    return () => clearInterval(id)
+  }, [authUrl, ts?.state])
+
+  async function login() {
+    setBusy(true)
+    try {
+      const res = await api('/services/tailscale/login', { method: 'POST' })
+      if (res.auth_url) {
+        setAuthUrl(res.auth_url)
+        window.open(res.auth_url, '_blank', 'noopener')
+        toast.ok('Opened Tailscale login in a new tab.')
+      } else {
+        toast.ok(res.message || 'Already logged in.')
+      }
+      await load()
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function setServe(enabled) {
+    setBusy(true)
+    try {
+      const res = await api('/services/tailscale/serve', { method: 'PUT', body: { enabled } })
+      toast.ok(res.message)
+      await load()
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   async function setConnection(connect) {
     setBusy(true)
@@ -152,7 +203,20 @@ function TailscalePanel() {
           </span>
         </span>
         {ts.state === 'NeedsLogin' ? (
-          <span className="field-hint">Run `sudo tailscale up` on the Pi to log in.</span>
+          <div className="control-line-cta">
+            {authUrl ? (
+              <>
+                <a className="btn btn-primary" href={authUrl} target="_blank" rel="noopener">
+                  Continue login →
+                </a>
+                <span className="field-hint">Waiting for you to finish in the other tab…</span>
+              </>
+            ) : (
+              <Btn variant="primary" busy={busy} onClick={login}>
+                Log in to Tailscale
+              </Btn>
+            )}
+          </div>
         ) : (
           <Toggle
             label={running ? 'Connected' : 'Disconnected'}
@@ -190,6 +254,24 @@ function TailscalePanel() {
       {running && (
         <div className="control-line">
           <span className="control-line-label">
+            Serve dashboard over HTTPS
+            <span className="sub">
+              Publish the admin UI at https://{ts.dns_name || '<host>.ts.net'}/ with a
+              Tailscale-issued TLS cert. Stays tailnet-only unless Funnel is on.
+            </span>
+          </span>
+          <Toggle
+            label={ts.serving ? 'Serving' : 'Off'}
+            checked={!!ts.serving}
+            disabled={busy}
+            onChange={setServe}
+          />
+        </div>
+      )}
+
+      {running && (
+        <div className="control-line">
+          <span className="control-line-label">
             Public share links (Funnel)
             <span className="sub">
               Exposes only /s/* to the public internet so share links work off-tailnet. Admin
@@ -210,11 +292,6 @@ function TailscalePanel() {
           <div className="field-label group-label">Reach this server from anywhere on your tailnet</div>
           {httpsUrl && ts.serving && (
             <CopyRow label="Dashboard (HTTPS)" value={httpsUrl} hint="Tailscale serves this over TLS — no port forwarding, no HTTP." />
-          )}
-          {httpsUrl && !ts.serving && (
-            <p className="field-hint">
-              Run <code>sudo tailscale serve --bg http://localhost:80</code> on the Pi to expose the dashboard over HTTPS.
-            </p>
           )}
           {smbHost && (
             <CopyRow

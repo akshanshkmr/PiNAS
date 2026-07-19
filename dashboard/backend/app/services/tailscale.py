@@ -1,6 +1,8 @@
 """Tailscale status and connect/disconnect."""
 
 import json
+import subprocess
+import time
 
 from .shell import CmdResult, run, sudo
 
@@ -123,6 +125,75 @@ def set_connection(connect: bool) -> CmdResult:
         # Re-establish using the saved login/preferences from first setup.
         return sudo("tailscale", "up", timeout=60)
     return sudo("tailscale", "down", timeout=30)
+
+
+def start_login(timeout_s: float = 15.0) -> tuple[str | None, str | None]:
+    """Trigger an interactive login and return the auth URL to show the user.
+
+    `tailscale up` blocks until the browser flow completes, so we detach it
+    and poll status until `AuthURL` is populated (or the node comes up on
+    its own if it was already logged in but stopped). Returns (url, error).
+    """
+    # Fast path: an AuthURL from an earlier attempt is still live.
+    res = _status_json()
+    if res.ok:
+        try:
+            data = json.loads(res.output)
+        except json.JSONDecodeError:
+            data = {}
+        if data.get("AuthURL"):
+            return data["AuthURL"], None
+        if data.get("BackendState") == "Running":
+            return None, None  # already logged in and up
+
+    # Detach: `tailscale up` blocks until the user completes the login
+    # in the browser; we only care that it publishes the AuthURL first.
+    try:
+        subprocess.Popen(
+            ["sudo", "-n", "tailscale", "up"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as e:
+        return None, str(e)
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        time.sleep(0.4)
+        res = _status_json()
+        if not res.ok:
+            continue
+        try:
+            data = json.loads(res.output)
+        except json.JSONDecodeError:
+            continue
+        if data.get("AuthURL"):
+            return data["AuthURL"], None
+        if data.get("BackendState") == "Running":
+            return None, None
+    return None, "Timed out waiting for an auth URL. Try again in a moment."
+
+
+def set_serve(enabled: bool) -> CmdResult:
+    """Publish (or tear down) the admin dashboard at https://<host>.ts.net/.
+
+    Tailscale terminates TLS with a magic-DNS cert — no port forward, no
+    Let's Encrypt dance. Setup used to run this from setup.sh; now the
+    Network tab drives it."""
+    if enabled:
+        return sudo("tailscale", "serve", "--bg", "http://localhost:80", timeout=20)
+    # Off — clear the root handler; ignore "already gone" errors.
+    res = sudo("tailscale", "serve", "--set-path=/", "off", timeout=15)
+    if res.ok or _funnel_off_ok(res):
+        return CmdResult(True, output="Dashboard is no longer served over Tailscale HTTPS.")
+    # Fall back to shutting the entire HTTPS listener if anything else
+    # is stuck on it (e.g. Funnel-only /s/ handler on the same host:port).
+    fallback = sudo("tailscale", "serve", "--https=443", "off", timeout=15)
+    if fallback.ok or _funnel_off_ok(fallback):
+        return CmdResult(True, output="Dashboard is no longer served over Tailscale HTTPS.")
+    return res
 
 
 def set_exit_node(advertise: bool) -> CmdResult:

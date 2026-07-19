@@ -76,3 +76,28 @@ async def tailscale_funnel(body: ToggleRequest):
         "message": "Funnel exposing /s/ to the public internet."
                    if body.enabled else "Funnel for /s/ turned off.",
     }
+
+
+@router.put("/tailscale/serve")
+async def tailscale_serve(body: ToggleRequest):
+    res = await asyncio.to_thread(tailscale.set_serve, body.enabled)
+    if not res.ok:
+        raise HTTPException(status_code=500, detail=res.error)
+    return {
+        "ok": True,
+        "message": "Dashboard is now reachable at https://<host>.ts.net/."
+                   if body.enabled else res.output or "Dashboard serve disabled.",
+    }
+
+
+@router.post("/tailscale/login")
+async def tailscale_login():
+    """Kick off the interactive login flow and return the auth URL to open."""
+    url, err = await asyncio.to_thread(tailscale.start_login)
+    if err:
+        raise HTTPException(status_code=500, detail=err)
+    if not url:
+        # Already logged in and Running — nothing to do.
+        return {"ok": True, "auth_url": None, "message": "Tailscale is already logged in."}
+    return {"ok": True, "auth_url": url,
+            "message": "Open the auth URL to complete login. Status will refresh automatically."}

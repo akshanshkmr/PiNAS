@@ -1342,6 +1342,14 @@ input[type='range']:disabled {
   margin-top: 3px;
 }
 
+.control-line-cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .control-select {
   width: auto;
   min-width: 160px;

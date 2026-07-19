@@ -9,6 +9,7 @@ import asyncio
 import hashlib
 import hmac
 import html
+import json as jsonlib
 import mimetypes
 import os
 import time
@@ -78,6 +79,55 @@ def _load(token: str):
     return s
 
 
+def _viewer_url(token: str, path: str, slideshow: bool = False) -> str:
+    qs = f"?p={quote(path)}"
+    if slideshow:
+        qs += "&slideshow=1"
+    return f"/s/{token}{qs}"
+
+
+def _gallery_context(share, target, slideshow: bool):
+    """When a media file is opened inside a folder-share, describe its
+    siblings so the viewer can render Back / Prev / Next / Slideshow.
+
+    Returns a dict with rendered URLs and the current index, or None when
+    the share is a single file (nothing to navigate)."""
+    if not share.is_dir:
+        return None
+    parent = target.parent
+    try:
+        shares.scope_check(share, str(parent))
+    except PermissionError:
+        return None
+    try:
+        listing = filesvc.list_dir(str(parent))
+    except Exception:
+        return None
+    gallery = [e for e in listing["entries"] if e["kind"] in ("image", "video")]
+    if not gallery:
+        return None
+    paths = [e["path"] for e in gallery]
+    try:
+        idx = paths.index(str(target))
+    except ValueError:
+        return None
+    prev_idx = idx - 1 if idx > 0 else None
+    next_idx = idx + 1 if idx + 1 < len(paths) else None
+    return {
+        "token": share.token,
+        "back": _viewer_url(share.token, str(parent)),
+        "prev": _viewer_url(share.token, paths[prev_idx], slideshow) if prev_idx is not None else None,
+        "next": _viewer_url(share.token, paths[next_idx], slideshow) if next_idx is not None else None,
+        # Slideshow always advances (wraps) so it never dead-ends on the last item.
+        "loop_next": _viewer_url(share.token, paths[(idx + 1) % len(paths)], slideshow=True),
+        "toggle": _viewer_url(share.token, str(target), slideshow=not slideshow),
+        "index": idx,
+        "total": len(paths),
+        "kind": gallery[idx]["kind"],
+        "slideshow": slideshow,
+    }
+
+
 # ------------------------------------------------------------------ viewer
 
 _PAGE_CSS = """
@@ -115,6 +165,16 @@ _PAGE_CSS = """
       text-transform: uppercase; margin-top: 30px; text-align: center; }
     img.hero { max-width: 100%; max-height: 78vh; border-radius: 3px; display: block; margin: 0 auto; }
     video, audio { max-width: 100%; display: block; margin: 0 auto; }
+    .navbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 18px; }
+    .navbar .action { margin: 0; padding: 8px 14px; font-size: 12px; }
+    .navbar .action.is-off { opacity: 0.35; pointer-events: none; cursor: not-allowed; }
+    .navbar .counter { color: #6b7d9e; font-size: 11px; letter-spacing: 0.12em;
+      text-transform: uppercase; margin-left: auto; font-family: 'Space Mono', monospace; }
+    .navbar .spacer { width: 8px; }
+    .kbdhint { color: #3d4c66; font-size: 10px; letter-spacing: 0.16em;
+      text-transform: uppercase; margin-top: 10px; text-align: center; }
+    .kbdhint kbd { display: inline-block; padding: 1px 6px; margin: 0 2px;
+      border: 1px solid #263248; border-radius: 2px; color: #6b7d9e; font-size: 10px; }
 """
 
 
@@ -158,6 +218,7 @@ def _password_prompt(share, error: str = "") -> HTMLResponse:
 
 @router.get("/{token}", response_class=HTMLResponse)
 async def viewer(token: str, request: Request, subpath: str | None = Query(default=None, alias="p"),
+                 slideshow: int = Query(default=0),
                  unlock: str | None = Cookie(default=None, alias=_UNLOCK_COOKIE)):
     s = _load(token)
     if not _is_unlocked(s, unlock):
@@ -234,13 +295,63 @@ async def viewer(token: str, request: Request, subpath: str | None = Query(defau
     if kind == "image":
         preview = f'<img class="hero" src="{raw_url}" alt=""/>'
     elif kind == "video":
-        preview = f'<video src="{raw_url}" controls autoplay style="max-height:78vh"></video>'
+        preview = f'<video id="mediaEl" src="{raw_url}" controls autoplay style="max-height:78vh"></video>'
     elif kind == "audio":
         preview = f'<audio src="{raw_url}" controls autoplay></audio>'
     else:
         preview = f'<div class="card">Preview not available. Download the file to open it.</div>'
 
+    ctx = _gallery_context(s, target, bool(slideshow))
+    navbar = ""
+    slideshow_js = ""
+    if ctx:
+        prev_cls = "" if ctx["prev"] else "is-off"
+        next_cls = "" if ctx["next"] else "is-off"
+        prev_href = ctx["prev"] or "#"
+        next_href = ctx["next"] or "#"
+        ss_label = "⏸ Pause" if ctx["slideshow"] else "▶ Slideshow"
+        navbar = f"""
+          <div class="navbar">
+            <a class="action" href="{ctx['back']}">← Folder</a>
+            <span class="spacer"></span>
+            <a class="action {prev_cls}" href="{prev_href}">← Prev</a>
+            <a class="action {next_cls}" href="{next_href}">Next →</a>
+            <a class="action" href="{ctx['toggle']}">{ss_label}</a>
+            <span class="counter">{ctx['index'] + 1} / {ctx['total']}</span>
+          </div>
+        """
+        # keyboard: ← → for prev/next, Esc = back
+        js_ctx = jsonlib.dumps({
+            "back": ctx["back"], "prev": ctx["prev"], "next": ctx["next"],
+            "loopNext": ctx["loop_next"], "slideshow": ctx["slideshow"],
+            "kind": ctx["kind"],
+        }).replace("</", "<\\/")  # defuse premature </script> if a path ever contains one
+        slideshow_js = f"""
+          <script>
+            (function() {{
+              const g = {js_ctx};
+              window.addEventListener('keydown', function(e) {{
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                if (e.key === 'ArrowLeft' && g.prev) {{ e.preventDefault(); location.href = g.prev; }}
+                else if (e.key === 'ArrowRight' && g.next) {{ e.preventDefault(); location.href = g.next; }}
+                else if (e.key === 'Escape' && g.back) {{ e.preventDefault(); location.href = g.back; }}
+              }});
+              if (g.slideshow) {{
+                if (g.kind === 'image') {{
+                  // still images: advance every 4s (wraps back to the first)
+                  setTimeout(function() {{ location.href = g.loopNext; }}, 4000);
+                }} else if (g.kind === 'video') {{
+                  // video: advance when playback finishes
+                  const v = document.getElementById('mediaEl');
+                  if (v) v.addEventListener('ended', function() {{ location.href = g.loopNext; }});
+                }}
+              }}
+            }})();
+          </script>
+        """
+
     body = f"""
+      {navbar}
       <h1>{html.escape(target.name)}</h1>
       <div class="sub">{_pretty_bytes(target.stat().st_size)}</div>
       <div class="card">{preview}
@@ -248,6 +359,8 @@ async def viewer(token: str, request: Request, subpath: str | None = Query(defau
           <a class="action" href="{dl_url}">Download</a>
         </div>
       </div>
+      {'<div class="kbdhint"><kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>Esc</kbd> back to folder</div>' if ctx else ''}
+      {slideshow_js}
     """
     return _page_shell(target.name, body)
 

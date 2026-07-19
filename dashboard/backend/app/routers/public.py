@@ -175,6 +175,24 @@ _PAGE_CSS = """
       text-transform: uppercase; margin-top: 10px; text-align: center; }
     .kbdhint kbd { display: inline-block; padding: 1px 6px; margin: 0 2px;
       border: 1px solid #263248; border-radius: 2px; color: #6b7d9e; font-size: 10px; }
+    /* Fullscreen paints the whole viewport black so images sit centered. */
+    body:fullscreen, body:-webkit-full-screen { background: #000; padding: 0; }
+    body:fullscreen .wrap, body:-webkit-full-screen .wrap {
+      max-width: none; height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+    body:fullscreen h1, body:fullscreen .sub, body:fullscreen .footer,
+    body:fullscreen .kbdhint, body:-webkit-full-screen h1, body:-webkit-full-screen .sub,
+    body:-webkit-full-screen .footer, body:-webkit-full-screen .kbdhint { display: none; }
+    body:fullscreen .card, body:-webkit-full-screen .card {
+      background: transparent; border: none; padding: 0; display: grid; place-items: center; }
+    body:fullscreen img.hero, body:-webkit-full-screen img.hero,
+    body:fullscreen video, body:-webkit-full-screen video {
+      max-width: 100vw; max-height: 100vh; }
+    body:fullscreen .navbar, body:-webkit-full-screen .navbar {
+      position: fixed; top: 14px; right: 14px; z-index: 10; margin: 0;
+      background: rgba(8,13,23,0.72); backdrop-filter: blur(6px);
+      padding: 6px; border-radius: 3px; opacity: 0.15; transition: opacity 0.2s; }
+    body:fullscreen .navbar:hover, body:-webkit-full-screen .navbar:hover { opacity: 1; }
+    body:fullscreen .card > div:last-child, body:-webkit-full-screen .card > div:last-child { display: none; }
 """
 
 
@@ -317,6 +335,7 @@ async def viewer(token: str, request: Request, subpath: str | None = Query(defau
             <a class="action {prev_cls}" href="{prev_href}">← Prev</a>
             <a class="action {next_cls}" href="{next_href}">Next →</a>
             <a class="action" href="{ctx['toggle']}">{ss_label}</a>
+            <a class="action" href="#" id="fsBtn">⛶ Fullscreen</a>
             <span class="counter">{ctx['index'] + 1} / {ctx['total']}</span>
           </div>
         """
@@ -330,11 +349,36 @@ async def viewer(token: str, request: Request, subpath: str | None = Query(defau
           <script>
             (function() {{
               const g = {js_ctx};
+              const FS_KEY = 'pinas.fs';
+              const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+              const enterFs = () => {{
+                const el = document.body;
+                (el.requestFullscreen || el.webkitRequestFullscreen || function(){{}}).call(el);
+              }};
+              const exitFs = () => {{
+                (document.exitFullscreen || document.webkitExitFullscreen || function(){{}}).call(document);
+              }};
+              const btn = document.getElementById('fsBtn');
+              if (btn) btn.addEventListener('click', function(e) {{
+                e.preventDefault();
+                if (isFs()) {{ sessionStorage.removeItem(FS_KEY); exitFs(); }}
+                else {{ sessionStorage.setItem(FS_KEY, '1'); enterFs(); }}
+              }});
+              // Persist fullscreen across Prev/Next reloads by re-entering after load.
+              if (sessionStorage.getItem(FS_KEY) === '1' && !isFs()) {{
+                const reenter = () => {{ enterFs(); ['click','keydown','touchstart'].forEach(t => document.removeEventListener(t, reenter)); }};
+                ['click','keydown','touchstart'].forEach(t => document.addEventListener(t, reenter, {{ once: true }}));
+              }}
+              document.addEventListener('fullscreenchange', function() {{
+                if (btn) btn.textContent = isFs() ? '⛶ Exit' : '⛶ Fullscreen';
+              }});
+
               window.addEventListener('keydown', function(e) {{
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
                 if (e.key === 'ArrowLeft' && g.prev) {{ e.preventDefault(); location.href = g.prev; }}
                 else if (e.key === 'ArrowRight' && g.next) {{ e.preventDefault(); location.href = g.next; }}
-                else if (e.key === 'Escape' && g.back) {{ e.preventDefault(); location.href = g.back; }}
+                else if (e.key === 'Escape' && !isFs() && g.back) {{ e.preventDefault(); location.href = g.back; }}
+                else if ((e.key === 'f' || e.key === 'F') && btn) {{ e.preventDefault(); btn.click(); }}
               }});
               if (g.slideshow) {{
                 if (g.kind === 'image') {{
@@ -359,7 +403,7 @@ async def viewer(token: str, request: Request, subpath: str | None = Query(defau
           <a class="action" href="{dl_url}">Download</a>
         </div>
       </div>
-      {'<div class="kbdhint"><kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>Esc</kbd> back to folder</div>' if ctx else ''}
+      {'<div class="kbdhint"><kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>F</kbd> fullscreen · <kbd>Esc</kbd> back to folder</div>' if ctx else ''}
       {slideshow_js}
     """
     return _page_shell(target.name, body)

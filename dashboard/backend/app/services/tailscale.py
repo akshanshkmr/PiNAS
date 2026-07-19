@@ -21,6 +21,22 @@ def _serve_url(res):
     return True  # serving something; URL is derived from the node's DNS name
 
 
+def _exit_node_advertised() -> bool:
+    """Read `tailscale debug prefs` and check whether the node has 0.0.0.0/0
+    (or ::/0) in AdvertiseRoutes — that's what --advertise-exit-node actually
+    sets. `Self.ExitNodeOption` from `tailscale status` only becomes true
+    after the tailnet admin console approves the node."""
+    r = sudo("tailscale", "debug", "prefs", timeout=8)
+    if not r.ok or not r.output:
+        return False
+    try:
+        prefs = json.loads(r.output)
+    except json.JSONDecodeError:
+        return False
+    routes = prefs.get("AdvertiseRoutes") or []
+    return "0.0.0.0/0" in routes or "::/0" in routes
+
+
 def _funnel_status():
     """Return (enabled, published_paths). Funnel exposes serve to the public
     internet, so a running Funnel means share links work off-tailnet."""
@@ -64,8 +80,10 @@ def status():
         )
     peers.sort(key=lambda p: (not p["online"], p["name"]))
 
-    # exit-node advertisement is in Self.ExitNodeOption for Pi 5 / recent tailscale
-    exit_node = bool(node.get("ExitNodeOption"))
+    # advertisement state is the source of truth; ExitNodeOption only becomes
+    # true after the tailnet admin console approves the node.
+    exit_node = _exit_node_advertised()
+    exit_node_approved = bool(node.get("ExitNodeOption"))
 
     funnel_on, funnel_paths = _funnel_status()
 
@@ -77,6 +95,7 @@ def status():
         "ips": node.get("TailscaleIPs", []) or [],
         "serving": bool(_serve_url(res)),
         "exit_node": exit_node,
+        "exit_node_approved": exit_node_approved,
         "funnel": {"enabled": funnel_on, "paths": funnel_paths},
         "peers": peers,
     }

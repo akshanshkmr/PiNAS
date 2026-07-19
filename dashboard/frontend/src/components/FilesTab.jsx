@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, fmtBytes } from '../api'
 import { toast } from '../toast'
-import { Badge, Btn, EmptyState, Panel } from './ui'
+import { Badge, Btn, EmptyState, Field, Panel, Toggle } from './ui'
 
 const GALLERY_KINDS = ['image', 'video', 'audio']
 

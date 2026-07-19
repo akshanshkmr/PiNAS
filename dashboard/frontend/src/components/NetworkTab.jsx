@@ -173,7 +173,13 @@ function TailscalePanel() {
             </span>
           </span>
           <Toggle
-            label={ts.exit_node ? 'Advertising' : 'Off'}
+            label={
+              ts.exit_node
+                ? ts.exit_node_approved
+                  ? 'Approved'
+                  : 'Advertising · awaiting admin approval'
+                : 'Off'
+            }
             checked={!!ts.exit_node}
             disabled={busy}
             onChange={setExitNode}

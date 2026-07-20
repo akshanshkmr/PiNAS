@@ -179,9 +179,11 @@ if ! command -v tailscale >/dev/null 2>&1; then
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
 if sudo tailscale status >/dev/null 2>&1; then
-    # Admin on 8443 (not 443) so it can't share AllowFunnel with /s/*.
-    # Sweep any legacy port-443 handler from older installs.
-    sudo tailscale serve --https=443 --set-path=/ off >/dev/null 2>&1 || true
+    # Admin on 8443. Aggressively clean port 443 — this backend never
+    # publishes anything on 443, so any older Serve/Funnel handler there
+    # is stale and worth clearing to avoid public exposure.
+    sudo tailscale funnel --https=443 off >/dev/null 2>&1 || true
+    sudo tailscale serve  --https=443 off >/dev/null 2>&1 || true
     if sudo tailscale serve --https=8443 --bg http://localhost:80 >/dev/null 2>&1; then
         ok "Tailscale connected; dashboard served at https://<host>.ts.net:8443/"
     else

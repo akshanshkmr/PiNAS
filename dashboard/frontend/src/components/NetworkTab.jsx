@@ -153,19 +153,6 @@ function TailscalePanel() {
     }
   }
 
-  async function setFunnel(enabled) {
-    setBusy(true)
-    try {
-      const res = await api('/services/tailscale/funnel', { method: 'PUT', body: { enabled } })
-      toast.ok(res.message)
-      await load()
-    } catch (err) {
-      toast.err(err.detail)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (!ts) {
     return (
       <Panel label="tailscale" meta="remote access">
@@ -273,21 +260,12 @@ function TailscalePanel() {
         </div>
       )}
 
-      {running && (
-        <div className="control-line">
-          <span className="control-line-label">
-            Public share links (Funnel)
-            <span className="sub">
-              Exposes only /s/* to the public internet so share links work off-tailnet. Admin
-              UI stays tailnet-only.
-            </span>
-          </span>
-          <Toggle
-            label={ts.funnel?.enabled ? 'Enabled' : 'Off'}
-            checked={!!ts.funnel?.enabled}
-            disabled={busy}
-            onChange={setFunnel}
-          />
+      {running && ts.funnel_exposed && (
+        <div className="warn-banner">
+          Tailscale still has AllowFunnel set for this node from an older
+          install — this dashboard no longer publishes anything on 443. Run{' '}
+          <code>sudo tailscale funnel --https=443 off</code> on the Pi to
+          clear it.
         </div>
       )}
 

@@ -1,4 +1,11 @@
-"""Tailscale status and connect/disconnect."""
+"""Tailscale status and connect/serve/exit-node control.
+
+There is intentionally no Funnel (public-internet) exposure here — it
+was removed after we found `tailscale funnel --set-path=/s/` doesn't
+actually scope AllowFunnel per path, and any unauthenticated public
+surface on a home server is a bad trade. Sharing over the tailnet uses
+the regular authenticated Files tab.
+"""
 
 import json
 import subprocess
@@ -7,21 +14,18 @@ import time
 from .shell import CmdResult, run, sudo
 
 
+# The admin dashboard is served on 8443 (never 443) so an old install that
+# still has AllowFunnel on port 443 for any reason can't leak the admin UI.
+ADMIN_PORT = 8443
+
+
 def _status_json():
-    # `tailscale status` works for a non-root user on most setups; fall back to
-    # sudo where the socket is root-only.
+    # `tailscale status` works for a non-root user on most setups; fall back
+    # to sudo where the socket is root-only.
     res = run("tailscale", "status", "--json", timeout=15)
     if not res.ok:
         res = sudo("tailscale", "status", "--json", timeout=15)
     return res
-
-
-# Tailscale's Funnel exposure is per-host:port, not per-path — enabling
-# Funnel on `<host>:443` for `/s/*` also exposes any Serve handler sharing
-# that port. So we host the admin dashboard on a Funnel-safe port (never
-# AllowFunnel'd) and keep public /s/ on 443.
-ADMIN_PORT = 8443
-FUNNEL_PORT = 443
 
 
 def _serve_config() -> dict:
@@ -37,8 +41,7 @@ def _serve_config() -> dict:
 
 
 def _admin_serving(cfg: dict | None = None) -> bool:
-    """True when there is a handler at `/` on the admin port — the shape
-    Serve creates for the dashboard."""
+    """True when there's a handler at `/` on the admin port."""
     cfg = _serve_config() if cfg is None else cfg
     for host_port, web in (cfg.get("Web") or {}).items():
         try:
@@ -48,6 +51,13 @@ def _admin_serving(cfg: dict | None = None) -> bool:
         if port == ADMIN_PORT and "/" in (web.get("Handlers") or {}):
             return True
     return False
+
+
+def _funnel_exposed(cfg: dict | None = None) -> bool:
+    """True if any host:port has AllowFunnel — used to warn on old installs."""
+    cfg = _serve_config() if cfg is None else cfg
+    allow = cfg.get("AllowFunnel") or {}
+    return any(bool(v) for v in allow.values())
 
 
 def _exit_node_advertised() -> bool:
@@ -66,24 +76,11 @@ def _exit_node_advertised() -> bool:
     return "0.0.0.0/0" in routes or "::/0" in routes
 
 
-def _funnel_status(cfg: dict | None = None):
-    """Return (enabled, published_paths). We derive both from
-    `tailscale serve status --json` — the pretty-printed CLI has changed
-    phrasing over versions and its non-sudo socket often fails silently."""
-    cfg = _serve_config() if cfg is None else cfg
-    allow = cfg.get("AllowFunnel") or {}
-    enabled = any(bool(v) for v in allow.values())
-    if not enabled:
-        return False, []
-
-    paths: list[str] = []
-    for host_port, web in (cfg.get("Web") or {}).items():
-        if not allow.get(host_port):
-            continue
-        host = host_port.rsplit(":", 1)[0]
-        for path in (web.get("Handlers") or {}).keys():
-            paths.append(f"https://{host}{path}")
-    return True, paths
+def _off_ok(res: CmdResult) -> bool:
+    """Tailscale returns nonzero when we ask it to remove a handler that
+    isn't there — that's the state we're trying to reach anyway."""
+    err = (res.error or res.output or "").lower()
+    return "does not exist" in err or "no such" in err or "no funnel" in err
 
 
 def status():
@@ -111,13 +108,10 @@ def status():
         )
     peers.sort(key=lambda p: (not p["online"], p["name"]))
 
-    # advertisement state is the source of truth; ExitNodeOption only becomes
-    # true after the tailnet admin console approves the node.
     exit_node = _exit_node_advertised()
     exit_node_approved = bool(node.get("ExitNodeOption"))
 
     cfg = _serve_config()
-    funnel_on, funnel_paths = _funnel_status(cfg)
     serving = _admin_serving(cfg)
     admin_url = f"https://{dns_name}:{ADMIN_PORT}/" if (dns_name and serving) else None
 
@@ -132,14 +126,15 @@ def status():
         "admin_port": ADMIN_PORT,
         "exit_node": exit_node,
         "exit_node_approved": exit_node_approved,
-        "funnel": {"enabled": funnel_on, "paths": funnel_paths},
+        # Surfaced only as a warning if an old install still has Funnel on
+        # somewhere — there's no toggle to turn it back on from the UI.
+        "funnel_exposed": _funnel_exposed(cfg),
         "peers": peers,
     }
 
 
 def set_connection(connect: bool) -> CmdResult:
     if connect:
-        # Re-establish using the saved login/preferences from first setup.
         return sudo("tailscale", "up", timeout=60)
     return sudo("tailscale", "down", timeout=30)
 
@@ -151,7 +146,6 @@ def start_login(timeout_s: float = 15.0) -> tuple[str | None, str | None]:
     and poll status until `AuthURL` is populated (or the node comes up on
     its own if it was already logged in but stopped). Returns (url, error).
     """
-    # Fast path: an AuthURL from an earlier attempt is still live.
     res = _status_json()
     if res.ok:
         try:
@@ -161,10 +155,8 @@ def start_login(timeout_s: float = 15.0) -> tuple[str | None, str | None]:
         if data.get("AuthURL"):
             return data["AuthURL"], None
         if data.get("BackendState") == "Running":
-            return None, None  # already logged in and up
+            return None, None
 
-    # Detach: `tailscale up` blocks until the user completes the login
-    # in the browser; we only care that it publishes the AuthURL first.
     try:
         subprocess.Popen(
             ["sudo", "-n", "tailscale", "up"],
@@ -195,12 +187,13 @@ def start_login(timeout_s: float = 15.0) -> tuple[str | None, str | None]:
 
 def set_serve(enabled: bool) -> CmdResult:
     """Publish the admin dashboard at https://<host>.ts.net:8443/ (tailnet
-    only). The port is deliberately non-default and NOT the same as Funnel's
-    — Tailscale's Funnel is per-host:port, so keeping admin on its own port
-    is what actually keeps it off the public internet."""
-    # Legacy port-443 handler from older versions of PiNAS: sweep it away so
-    # it can't outlive an upgrade and stay exposed once Funnel is on.
-    sudo("tailscale", "serve", f"--https={FUNNEL_PORT}", "--set-path=/", "off", timeout=15)
+    only). Also aggressively tears down anything on port 443 so an older
+    install with a Serve or Funnel handler there can't stay exposed."""
+    # Clear any legacy port-443 handlers — with the share feature gone, we
+    # never want anything served or funnel'd on 443 by this backend.
+    sudo("tailscale", "serve",  "--https=443", "--set-path=/", "off", timeout=15)
+    sudo("tailscale", "serve",  "--https=443", "off", timeout=15)
+    sudo("tailscale", "funnel", "--https=443", "off", timeout=15)
 
     if enabled:
         return sudo("tailscale", "serve",
@@ -208,10 +201,10 @@ def set_serve(enabled: bool) -> CmdResult:
                     "http://localhost:80", timeout=20)
     res = sudo("tailscale", "serve",
                f"--https={ADMIN_PORT}", "--set-path=/", "off", timeout=15)
-    if res.ok or _funnel_off_ok(res):
+    if res.ok or _off_ok(res):
         return CmdResult(True, output="Dashboard is no longer served over Tailscale HTTPS.")
     fallback = sudo("tailscale", "serve", f"--https={ADMIN_PORT}", "off", timeout=15)
-    if fallback.ok or _funnel_off_ok(fallback):
+    if fallback.ok or _off_ok(fallback):
         return CmdResult(True, output="Dashboard is no longer served over Tailscale HTTPS.")
     return res
 
@@ -219,41 +212,4 @@ def set_serve(enabled: bool) -> CmdResult:
 def set_exit_node(advertise: bool) -> CmdResult:
     """Advertise this node as a tailnet exit node (VPN gateway) or stop."""
     flag = "--advertise-exit-node" if advertise else "--advertise-exit-node=false"
-    # `tailscale set` avoids re-negotiating auth (unlike `tailscale up`)
     return sudo("tailscale", "set", flag, timeout=30)
-
-
-def _funnel_off_ok(res: CmdResult) -> bool:
-    """Tailscale returns nonzero when we ask it to remove a handler that
-    isn't there — that's the state we're trying to reach anyway."""
-    err = (res.error or res.output or "").lower()
-    return "does not exist" in err or "no such" in err or "no funnel" in err
-
-
-def set_funnel(enabled: bool, path: str = "/s/") -> CmdResult:
-    """Expose only /s/* on the public internet via Funnel.
-
-    Because AllowFunnel is set per host:port (not per path), we must not
-    let any other handler live on the same port. On every enable we first
-    strip anything at `/` on the Funnel port — a leftover admin handler
-    from older setups would otherwise be leaked to the public internet.
-    """
-    slug = path.rstrip("/") or "/"
-
-    if enabled:
-        # Clear any stray root handler from older setups before flipping
-        # AllowFunnel on for the port.
-        sudo("tailscale", "serve", f"--https={FUNNEL_PORT}", "--set-path=/", "off", timeout=15)
-        return sudo("tailscale", "funnel", "--bg", f"--set-path={slug}",
-                    "http://localhost:80" + path, timeout=30)
-
-    # Off: remove our /s handler, then also make sure nothing else is
-    # holding the port open with AllowFunnel=true.
-    res = sudo("tailscale", "funnel", f"--set-path={slug}", "off", timeout=15)
-    if res.ok or _funnel_off_ok(res):
-        sudo("tailscale", "funnel", "--set-path=/", "off", timeout=15)
-        return CmdResult(True, output="Public share links (Funnel) turned off.")
-    fallback = sudo("tailscale", "funnel", f"--https={FUNNEL_PORT}", "off", timeout=15)
-    if fallback.ok or _funnel_off_ok(fallback):
-        return CmdResult(True, output="Public share links (Funnel) turned off.")
-    return res

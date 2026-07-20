@@ -1350,6 +1350,22 @@ input[type='range']:disabled {
   justify-content: flex-end;
 }
 
+.warn-banner {
+  background: rgba(220, 140, 40, 0.10);
+  border: 1px solid rgba(220, 140, 40, 0.55);
+  color: #f8d7ad;
+  padding: 10px 14px;
+  border-radius: 2px;
+  font-size: 12px;
+  margin: 12px 0;
+}
+.warn-banner code {
+  background: rgba(0,0,0,0.35);
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-family: 'Space Mono', monospace;
+}
+
 .control-select {
   width: auto;
   min-width: 160px;

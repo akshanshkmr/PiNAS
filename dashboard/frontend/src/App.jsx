@@ -26,7 +26,7 @@ const TABS = [
   { id: 'network',  label: 'Network',  sub: 'lan · tailscale · funnel · vpn',     path: '/network',  component: NetworkTab },
   { id: 'services', label: 'Services', sub: 'systemd units',                      path: '/services', component: ServicesTab },
   { id: 'terminal', label: 'Terminal', sub: 'bash login shell',                   path: '/terminal', component: TerminalTab },
-  { id: 'controls', label: 'Controls', sub: 'power · updates · case · fans',      path: '/controls', component: ControlsTab },
+  { id: 'controls', label: 'Controls', sub: 'power · case · fans',                path: '/controls', component: ControlsTab },
 ]
 
 function TabIcon({ id }) {

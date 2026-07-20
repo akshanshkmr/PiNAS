@@ -1,7 +1,6 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ..security import require_auth
@@ -45,26 +44,6 @@ async def power(body: PowerRequest):
     if not res.ok:
         raise HTTPException(status_code=500, detail=res.error)
     return {"ok": True, "message": f"{body.action.capitalize()} command issued."}
-
-
-class ConfirmRequest(BaseModel):
-    confirm: str
-
-
-@router.get("/updates")
-async def updates():
-    return await asyncio.to_thread(controls.check_updates)
-
-
-@router.post("/updates/apply")
-async def apply_updates(body: ConfirmRequest):
-    if body.confirm.strip().upper() != "UPGRADE":
-        raise HTTPException(status_code=400, detail="Type UPGRADE to confirm")
-    return StreamingResponse(
-        controls.apply_updates_stream(),
-        media_type="text/plain; charset=utf-8",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
 
 
 @router.get("/pironman")

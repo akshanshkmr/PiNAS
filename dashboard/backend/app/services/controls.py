@@ -1,10 +1,8 @@
-"""Power, package updates, Pironman case and CPU fan control."""
+"""Power, Pironman case and CPU fan control."""
 
 import json
-import os
-import subprocess
 
-from .shell import CmdResult, run, sudo
+from .shell import CmdResult, sudo
 
 FAN_MODES = ["Always On", "Performance", "Cool", "Balanced", "Quiet"]
 RGB_STYLES = ["solid", "breathing", "flow", "flow_reverse", "rainbow", "rainbow_reverse", "hue_cycle"]
@@ -32,53 +30,6 @@ def reboot() -> CmdResult:
 
 def shutdown() -> CmdResult:
     return sudo("shutdown", "-h", "+0")
-
-
-def check_updates() -> dict:
-    res = run("apt", "list", "--upgradable", timeout=60)
-    if not res.ok:
-        return {"ok": False, "error": res.error, "packages": []}
-    packages = []
-    for line in res.output.splitlines():
-        if "/" not in line or line.startswith("Listing"):
-            continue
-        # e.g. "vim/stable 2:9.0.1378-2 arm64 [upgradable from: 2:9.0.1378-1]"
-        parts = line.split()
-        name = parts[0].split("/")[0]
-        new_version = parts[1] if len(parts) > 1 else ""
-        current = line.split("upgradable from:")[-1].rstrip("]").strip() if "upgradable from:" in line else ""
-        packages.append({"name": name, "new": new_version, "current": current})
-    return {"ok": True, "packages": packages}
-
-
-def apply_updates_stream():
-    """Refresh apt lists then upgrade, yielding combined output as it runs.
-
-    A generator so the caller can stream progress to the browser — apt upgrades
-    can take minutes and shouldn't block on a single response.
-    """
-    env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
-    phases = [
-        ("Refreshing package lists", ["sudo", "-n", "apt-get", "update"]),
-        ("Installing upgrades", ["sudo", "-n", "apt-get", "-y", "upgrade"]),
-    ]
-    for title, cmd in phases:
-        yield f"\n=== {title} ===\n"
-        try:
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, bufsize=1
-            )
-        except OSError as e:
-            yield f"failed to start apt: {e}\n"
-            return
-        for line in iter(proc.stdout.readline, ""):
-            yield line
-        proc.stdout.close()
-        code = proc.wait()
-        if code != 0:
-            yield f"\n[{title} failed with exit code {code}]\n"
-            return
-    yield "\n[all upgrades applied]\n"
 
 
 def get_pironman_config() -> dict:

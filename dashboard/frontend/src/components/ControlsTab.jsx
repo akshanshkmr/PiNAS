@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { toast } from '../toast'
-import { Badge, Btn, Panel, ConfirmWord, Field, Toggle, severity } from './ui'
+import { Btn, Panel, ConfirmWord, Field, Toggle, severity } from './ui'
 
 const FAN_MODES = ['Always On', 'Performance', 'Cool', 'Balanced', 'Quiet']
 const RGB_STYLES = ['solid', 'breathing', 'flow', 'flow_reverse', 'rainbow', 'rainbow_reverse', 'hue_cycle']
@@ -291,140 +291,6 @@ function AppearanceCard({ config, reload }) {
   )
 }
 
-/* ---------------- Software updates ---------------- */
-
-function UpdatesCard() {
-  const [result, setResult] = useState(null)
-  const [checkedAt, setCheckedAt] = useState(null)
-  const [busy, setBusy] = useState(false)
-  const [confirm, setConfirm] = useState('')
-  const [applying, setApplying] = useState(false)
-  const [log, setLog] = useState('')
-  const logRef = useRef(null)
-
-  async function check() {
-    setBusy(true)
-    try {
-      setResult(await api('/controls/updates'))
-      setCheckedAt(new Date())
-    } catch (err) {
-      toast.err(err.detail)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function applyUpdates() {
-    setApplying(true)
-    setLog('')
-    try {
-      const res = await fetch('/api/controls/updates/apply', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm }),
-      })
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to start update')
-      }
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        setLog(buffer)
-        if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
-      }
-      if (buffer.includes('[all upgrades applied]')) {
-        toast.ok('Updates applied')
-      } else {
-        toast.err('Update finished with errors — check the log')
-      }
-      setConfirm('')
-      check()
-    } catch (err) {
-      toast.err(err.message)
-    } finally {
-      setApplying(false)
-    }
-  }
-
-  const count = result?.ok ? result.packages.length : null
-
-  return (
-    <Panel
-      label="software updates"
-      meta="apt"
-      actions={
-        <>
-          {count != null && (
-            <Badge tone={count ? 'warn' : 'ok'}>{count ? `${count} available` : 'up to date'}</Badge>
-          )}
-          <Btn onClick={check} busy={busy} disabled={applying}>
-            {result ? 'Re-check' : 'Check for updates'}
-          </Btn>
-        </>
-      }
-    >
-      {!result && <p className="field-hint">Lists upgradable apt packages. Nothing is installed until you apply.</p>}
-      {result && !result.ok && <div className="form-error">{result.error}</div>}
-      {result && result.ok && (
-        <>
-          {checkedAt && <p className="field-hint">Last checked {checkedAt.toLocaleTimeString()}.</p>}
-          {count === 0 ? (
-            <div className="empty-state">Everything is up to date.</div>
-          ) : (
-            <>
-              <div className="table-scroll">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>package</th>
-                      <th>installed</th>
-                      <th>available</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.packages.map((p) => (
-                      <tr key={p.name}>
-                        <td className="mono">{p.name}</td>
-                        <td className="mono tone-muted">{p.current}</td>
-                        <td className="mono tone-accent">{p.new}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="confirm-box">
-                <p>Runs `apt-get update` then `apt-get upgrade` for all {count} packages. This can take a few minutes.</p>
-                <div className="btn-row">
-                  <ConfirmWord word="UPGRADE" value={confirm} onChange={setConfirm} />
-                  <Btn
-                    variant="primary"
-                    busy={applying}
-                    disabled={confirm.trim().toUpperCase() !== 'UPGRADE'}
-                    onClick={applyUpdates}
-                  >
-                    {applying ? 'Applying…' : `Apply ${count} updates`}
-                  </Btn>
-                </div>
-              </div>
-            </>
-          )}
-        </>
-      )}
-      {log && (
-        <pre className="code-block unit-logs" ref={logRef}>
-          {log}
-        </pre>
-      )}
-    </Panel>
-  )
-}
-
 /* ---------------- Power ---------------- */
 
 function PowerCard() {
@@ -522,8 +388,6 @@ export default function ControlsTab({ stats }) {
           <div className="empty-state">Pironman tools aren’t available: {configError}</div>
         </Panel>
       )}
-
-      <UpdatesCard />
     </div>
   )
 }

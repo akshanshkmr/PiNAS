@@ -169,10 +169,8 @@ function TailscalePanel() {
   }
 
   const running = ts.state === 'Running'
-  // Prefer the admin URL the server publishes — it knows which port
-  // Serve is on. Fall back to the plain https://<host>/ shape.
-  const adminPort = ts.admin_port || 8443
-  const httpsUrl = ts.admin_url || (ts.dns_name ? `https://${ts.dns_name}:${adminPort}/` : null)
+  // Server publishes admin_url with the right shape (port only when non-default).
+  const httpsUrl = ts.admin_url || (ts.dns_name ? `https://${ts.dns_name}/` : null)
   const smbHost = ts.dns_name || ts.ips[0]
 
   return (
@@ -246,9 +244,8 @@ function TailscalePanel() {
           <span className="control-line-label">
             Serve dashboard over HTTPS
             <span className="sub">
-              Publish the admin UI at https://{ts.dns_name || '<host>.ts.net'}:{adminPort}/ with
-              a Tailscale-issued TLS cert. Port {adminPort} is deliberately not the same as
-              Funnel's — it's what keeps the dashboard off the public internet.
+              Publish the admin UI at https://{ts.dns_name || '<host>.ts.net'}/ with a
+              Tailscale-issued TLS cert. Stays tailnet-only.
             </span>
           </span>
           <Toggle

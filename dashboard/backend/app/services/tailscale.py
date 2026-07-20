@@ -14,9 +14,10 @@ import time
 from .shell import CmdResult, run, sudo
 
 
-# The admin dashboard is served on 8443 (never 443) so an old install that
-# still has AllowFunnel on port 443 for any reason can't leak the admin UI.
-ADMIN_PORT = 8443
+# Admin dashboard on the standard HTTPS port. Nothing else the backend
+# publishes goes on 443 anymore (Funnel was removed), so as long as we
+# don't set AllowFunnel on this port, Tailscale keeps it tailnet-only.
+ADMIN_PORT = 443
 
 
 def _status_json():
@@ -113,7 +114,12 @@ def status():
 
     cfg = _serve_config()
     serving = _admin_serving(cfg)
-    admin_url = f"https://{dns_name}:{ADMIN_PORT}/" if (dns_name and serving) else None
+    # Only include the port suffix when it isn't the HTTPS default —
+    # cleaner URL to hand out.
+    if dns_name and serving:
+        admin_url = f"https://{dns_name}/" if ADMIN_PORT == 443 else f"https://{dns_name}:{ADMIN_PORT}/"
+    else:
+        admin_url = None
 
     return {
         "available": True,
@@ -186,14 +192,13 @@ def start_login(timeout_s: float = 15.0) -> tuple[str | None, str | None]:
 
 
 def set_serve(enabled: bool) -> CmdResult:
-    """Publish the admin dashboard at https://<host>.ts.net:8443/ (tailnet
-    only). Also aggressively tears down anything on port 443 so an older
-    install with a Serve or Funnel handler there can't stay exposed."""
-    # Clear any legacy port-443 handlers — with the share feature gone, we
-    # never want anything served or funnel'd on 443 by this backend.
-    sudo("tailscale", "serve",  "--https=443", "--set-path=/", "off", timeout=15)
-    sudo("tailscale", "serve",  "--https=443", "off", timeout=15)
-    sudo("tailscale", "funnel", "--https=443", "off", timeout=15)
+    """Publish the admin dashboard at https://<host>.ts.net/ (tailnet only).
+
+    The port is standard 443; safety comes from *not* setting AllowFunnel
+    on it, so requests from the public internet hit the Funnel edge and
+    are refused. We also proactively clear any lingering AllowFunnel from
+    a previous install — Funnel isn't a feature here anymore."""
+    sudo("tailscale", "funnel", f"--https={ADMIN_PORT}", "off", timeout=15)
 
     if enabled:
         return sudo("tailscale", "serve",

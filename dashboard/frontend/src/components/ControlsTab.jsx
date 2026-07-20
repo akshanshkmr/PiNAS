@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { toast } from '../toast'
-import { Btn, Panel, ConfirmWord, Field, Toggle, severity } from './ui'
+import { Badge, Btn, Panel, ConfirmWord, Field, Toggle, severity } from './ui'
 
 const FAN_MODES = ['Always On', 'Performance', 'Cool', 'Balanced', 'Quiet']
 const RGB_STYLES = ['solid', 'breathing', 'flow', 'flow_reverse', 'rainbow', 'rainbow_reverse', 'hue_cycle']

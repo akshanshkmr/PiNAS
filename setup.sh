@@ -179,16 +179,18 @@ if ! command -v tailscale >/dev/null 2>&1; then
     curl -fsSL https://tailscale.com/install.sh | sh
 fi
 if sudo tailscale status >/dev/null 2>&1; then
-    if sudo tailscale serve --bg http://localhost:80 >/dev/null 2>&1; then
-        ok "Tailscale connected; serving dashboard over tailnet"
+    # Admin on 8443 (not 443) so it can't share AllowFunnel with /s/*.
+    # Sweep any legacy port-443 handler from older installs.
+    sudo tailscale serve --https=443 --set-path=/ off >/dev/null 2>&1 || true
+    if sudo tailscale serve --https=8443 --bg http://localhost:80 >/dev/null 2>&1; then
+        ok "Tailscale connected; dashboard served at https://<host>.ts.net:8443/"
     else
         warn "Tailscale is up but 'serve' failed — enable HTTPS in the admin console, then:"
-        warn "    sudo tailscale serve --bg http://localhost:80"
+        warn "    sudo tailscale serve --https=8443 --bg http://localhost:80"
     fi
 else
-    echo "    Tailscale is installed but not connected. To finish:"
-    echo "      sudo tailscale up --ssh --advertise-routes=192.168.1.0/24"
-    echo "      sudo tailscale serve --bg http://localhost:80"
+    echo "    Tailscale is installed but not connected. Log in from the Network tab of the dashboard,"
+    echo "    or from the shell: sudo tailscale up --ssh"
 fi
 
 # ------------------------------------------------------------

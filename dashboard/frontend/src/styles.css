@@ -319,6 +319,7 @@ body {
   z-index: 20;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   color: #dbe4f2;
+  min-width: 0;
 }
 .chassis-foot { position: relative; }
 .account-head {
@@ -327,41 +328,54 @@ body {
   align-items: center;
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(96, 165, 250, 0.16);
+  min-width: 0;
 }
 .account-avatar-lg {
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: rgba(96, 165, 250, 0.14);
   border: 1px solid rgba(96, 165, 250, 0.5);
   color: #dbeafe;
   display: grid;
   place-items: center;
-  flex: 0 0 42px;
-  font-size: 13px;
+  flex: 0 0 34px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-shadow: 0 0 8px rgba(96, 165, 250, 0.35);
 }
-.account-identity { min-width: 0; }
+.account-identity {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
 .account-name {
   font-family: var(--font-display);
   font-size: 15px;
   font-weight: 500;
   color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .account-handle {
   font-size: 11px;
   color: var(--muted);
   letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .account-meta {
   padding: 10px 2px;
   border-bottom: 1px solid rgba(96, 165, 250, 0.16);
 }
+/* Two-column list — key on the left, value column shrinks & wraps to
+   avoid IPv6 link-local strings punching through the popup edge. */
 .account-meta-row {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   align-items: baseline;
   gap: 12px;
   padding: 3px 0;
@@ -371,10 +385,15 @@ body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
+  white-space: nowrap;
 }
 .account-meta-val {
   font-size: 11px;
   color: #dbe4f2;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 .account-actions {
   display: flex;
@@ -406,6 +425,35 @@ body {
 }
 .account-signout:hover {
   background: rgba(220, 60, 60, 0.10);
+}
+.account-meta-link {
+  color: #7fb3ff;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(127, 179, 255, 0.4);
+}
+.account-meta-link:hover {
+  color: #a7c9ff;
+}
+.account-confirm {
+  padding: 6px 6px 4px;
+  border-top: 1px solid rgba(96, 165, 250, 0.16);
+  margin-top: 4px;
+}
+.account-confirm > .mono {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 4px 0 6px;
+}
+.account-confirm-btns {
+  display: flex;
+  gap: 4px;
+}
+.account-confirm-btns .account-action {
+  flex: 1;
+  padding: 8px 4px;
+  justify-content: center;
+  border: 1px solid rgba(96, 165, 250, 0.28);
 }
 
 /* Drives table on the storage-vitals panel — reuse the existing .table

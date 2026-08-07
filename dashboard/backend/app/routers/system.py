@@ -1,14 +1,20 @@
 import asyncio
 import json
+import subprocess
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from ..security import require_auth
 from ..services import smart
 from ..services.monitor import SAMPLE_INTERVAL, monitor
+from ..services.shell import run
 
 router = APIRouter(prefix="/system", tags=["system"], dependencies=[Depends(require_auth)])
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[3].parent  # /home/akshansh/homeserver
 
 
 @router.get("/stats")
@@ -62,6 +68,46 @@ async def health():
     Polled every few minutes by the frontend; SMART data itself doesn't
     change on a second-scale, so this stays off the per-second SSE stream."""
     return {"alerts": await asyncio.to_thread(_collect_health_alerts)}
+
+
+def _version_info() -> dict:
+    """Short git SHA + commit date so the popup can identify what's running.
+
+    Falls back to placeholders in case the repo has no git metadata
+    (e.g., someone unpacked a tarball)."""
+    root = str(_REPO_ROOT)
+    sha = run("git", "-C", root, "rev-parse", "--short", "HEAD", timeout=5)
+    when = run("git", "-C", root, "log", "-1", "--format=%cI", "HEAD", timeout=5)
+    return {
+        "commit": sha.output.strip() if sha.ok else "unknown",
+        "committed_at": when.output.strip() if when.ok else None,
+        "repo_url": "https://github.com/akshanshkmr/PiNAS",
+    }
+
+
+@router.get("/version")
+async def version():
+    return await asyncio.to_thread(_version_info)
+
+
+@router.post("/restart")
+async def restart_dashboard():
+    """Restart the `dashboard.service` unit from inside itself.
+
+    We detach with start_new_session so systemd can stop the current
+    process without the child dying with us. The client will see the
+    connection drop, then reconnect once uvicorn is back."""
+    try:
+        subprocess.Popen(
+            ["sudo", "-n", "systemctl", "restart", "dashboard"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"ok": True, "message": "Restart queued — the dashboard will be back in a few seconds."}
 
 
 @router.get("/stream")

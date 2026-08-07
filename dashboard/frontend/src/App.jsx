@@ -138,8 +138,12 @@ function sessionRemaining(expiresAt) {
 }
 
 function AccountPopup({ user, avatar, display, onClose, onLogout }) {
-  // click-outside + Escape close
   const boxRef = useRef(null)
+  const [version, setVersion] = useState(null)
+  const [confirmRestart, setConfirmRestart] = useState(false)
+  const [restarting, setRestarting] = useState(false)
+
+  // click-outside + Escape close
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     const onDown = (e) => {
@@ -156,6 +160,10 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
     }
   }, [onClose])
 
+  useEffect(() => {
+    api('/system/version').then(setVersion).catch(() => {})
+  }, [])
+
   async function copyDashUrl() {
     if (await copyText(window.location.origin + '/')) {
       toast.ok('Dashboard URL copied.')
@@ -163,6 +171,18 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
       toast.err('Couldn’t copy — grab it from the address bar.')
     }
     onClose()
+  }
+
+  async function restart() {
+    setRestarting(true)
+    try {
+      await api('/system/restart', { method: 'POST' })
+      toast.ok('Dashboard restarting…')
+      onClose()
+    } catch (err) {
+      toast.err(err.detail)
+      setRestarting(false)
+    }
   }
 
   return (
@@ -191,6 +211,20 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
             <span className="account-meta-val mono">{sessionRemaining(user.session_expires_at)}</span>
           </div>
         )}
+        {version && (
+          <div className="account-meta-row">
+            <span className="account-meta-key">version</span>
+            <a
+              className="account-meta-val mono account-meta-link"
+              href={`${version.repo_url}/commit/${version.commit}`}
+              target="_blank"
+              rel="noopener"
+              title={version.committed_at || ''}
+            >
+              {version.commit}
+            </a>
+          </div>
+        )}
       </div>
       <div className="account-actions">
         <button className="account-action" onClick={copyDashUrl}>
@@ -200,6 +234,49 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
           </svg>
           Copy dashboard URL
         </button>
+        <a
+          className="account-action"
+          href={version?.repo_url || 'https://github.com/akshanshkmr/PiNAS'}
+          target="_blank"
+          rel="noopener"
+          onClick={onClose}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M6.5 12H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            <path d="M9.5 4H11a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-1.5"/>
+            <line x1="5.5" y1="8" x2="10.5" y2="8"/>
+          </svg>
+          View on GitHub
+        </a>
+        {confirmRestart ? (
+          <div className="account-confirm">
+            <span className="mono">Restart the dashboard?</span>
+            <div className="account-confirm-btns">
+              <button
+                className="account-action account-signout"
+                onClick={restart}
+                disabled={restarting}
+              >
+                {restarting ? 'Restarting…' : 'Yes, restart'}
+              </button>
+              <button
+                className="account-action"
+                onClick={() => setConfirmRestart(false)}
+                disabled={restarting}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="account-action" onClick={() => setConfirmRestart(true)}>
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M13.5 4.5v3h-3"/>
+              <path d="M13 6.5A5.5 5.5 0 1 0 14 10.5"/>
+            </svg>
+            Restart dashboard
+          </button>
+        )}
         <button className="account-action account-signout" onClick={onLogout}>
           <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M10 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h6" />

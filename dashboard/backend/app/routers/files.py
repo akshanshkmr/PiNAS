@@ -39,7 +39,24 @@ class MkdirBody(BaseModel):
 
 @router.get("/roots")
 async def roots():
-    return {"roots": await asyncio.to_thread(filesvc.allowed_roots)}
+    def _both():
+        return {
+            "roots": filesvc.allowed_roots(),
+            "unmounted": filesvc.unmounted_drives(),
+        }
+    return await asyncio.to_thread(_both)
+
+
+class MountBody(BaseModel):
+    device: str
+
+
+@router.post("/mount")
+async def mount(body: MountBody):
+    target, err = await asyncio.to_thread(filesvc.mount_partition, body.device)
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+    return {"ok": True, "mountpoint": target}
 
 
 @router.get("/list")

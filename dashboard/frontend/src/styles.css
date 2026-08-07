@@ -249,19 +249,15 @@ body {
   gap: 12px;
 }
 
-.foot-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 2px;
-}
-
 .foot-user-lines {
   display: flex;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  /* Force block-ish behavior inside the button (spans are inline by default). */
+  flex: 1 1 auto;
 }
+.foot-greet, .foot-name { display: block; }
 
 .foot-avatar {
   width: 34px;
@@ -290,6 +286,10 @@ body {
   cursor: pointer;
   text-align: left;
   color: inherit;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   transition: background 0.14s, border-color 0.14s;
 }
 .foot-user-btn:hover,
@@ -415,6 +415,25 @@ body {
   white-space: nowrap;
 }
 
+/* Unmounted-drives list in the Explorer's empty state. */
+.unmounted-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.unmounted-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(96, 165, 250, 0.24);
+  border-radius: 3px;
+  background: rgba(96, 165, 250, 0.04);
+}
+.unmounted-main { min-width: 0; }
+
 .foot-greet {
   font-size: 11px;
   color: var(--muted);
@@ -446,7 +465,7 @@ body {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) 1.25fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   background: color-mix(in srgb, var(--deep) 88%, transparent);
   backdrop-filter: blur(6px);
@@ -497,23 +516,6 @@ body {
   font-size: 12px;
   margin-left: 1px;
   opacity: 0.6;
-}
-
-.rail-value-sm {
-  font-size: 13px;
-  color: var(--ink);
-}
-
-.rail-hostline {
-  font-size: 12px;
-  color: var(--muted);
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.dot-sep {
-  color: var(--faint);
 }
 
 .rail-boot {
@@ -2887,9 +2889,10 @@ svg.file-glyph {
     align-items: center;
     gap: 14px;
   }
-  .foot-user {
+  .foot-user-btn {
     align-items: center;
     gap: 8px;
+    width: auto;
   }
   .foot-user-lines {
     flex-direction: row;
@@ -2933,9 +2936,6 @@ svg.file-glyph {
   .rail {
     position: static;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .rail-host {
-    grid-column: 1 / -1;
   }
   .terminal-host {
     height: 60vh;

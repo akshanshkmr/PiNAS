@@ -245,16 +245,16 @@ function Sidebar({ user, online, onLogout }) {
 
       <div className="chassis-foot">
         <button
-          className={`foot-user foot-user-btn ${open ? 'is-open' : ''}`}
+          className={`foot-user-btn ${open ? 'is-open' : ''}`}
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={open}
         >
           <span className="foot-avatar mono" aria-hidden="true">{avatar}</span>
-          <div className="foot-user-lines">
+          <span className="foot-user-lines">
             <span className="foot-greet">{greeting()},</span>
             <span className="foot-name">{firstName}</span>
-          </div>
+          </span>
           <svg
             className="foot-user-chevron"
             viewBox="0 0 16 16"

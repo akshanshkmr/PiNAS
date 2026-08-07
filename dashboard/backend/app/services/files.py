@@ -53,6 +53,12 @@ def _kind(path: Path) -> str:
 
 _ATTACHED_ROOT_PREFIXES = ("/mnt/", "/media/", "/run/media/")
 
+# fstypes we're willing to mount from the UI. NTFS uses ntfs-3g (or the
+# in-kernel ntfs3 driver on recent Debian/Raspberry Pi OS); everything
+# else here is native.
+_MOUNTABLE_FSTYPES = {"ext2", "ext3", "ext4", "xfs", "btrfs", "f2fs",
+                       "vfat", "exfat", "ntfs", "ntfs3"}
+
 
 def _attached_drive_mounts() -> list[tuple[str, str]]:
     """Every real filesystem mounted under /mnt, /media, or /run/media —
@@ -86,6 +92,77 @@ def _attached_drive_mounts() -> list[tuple[str, str]]:
 
     walk(data.get("filesystems") or [])
     return out
+
+
+def unmounted_drives() -> list[dict]:
+    """Partitions with a filesystem that aren't currently mounted anywhere.
+    Skips the root and boot filesystems, RAID members, and swap. Every entry
+    is a candidate for `mount_partition()` — the Explorer surfaces them in
+    the root picker with a Mount action."""
+    res = run("lsblk", "-J", "-b", "-o", "NAME,LABEL,SIZE,FSTYPE,MOUNTPOINT,TYPE",
+              timeout=8)
+    if not res.ok or not res.output:
+        return []
+    try:
+        data = json.loads(res.output)
+    except json.JSONDecodeError:
+        return []
+
+    out: list[dict] = []
+
+    def walk(nodes):
+        for n in nodes or []:
+            children = n.get("children") or []
+            fstype = (n.get("fstype") or "").lower()
+            ntype = n.get("type")
+            mount = n.get("mountpoint")
+            name = n.get("name") or ""
+            # Only real partitions or whole disks with a filesystem —
+            # exclude RAID members, swap, extended partitions, and the
+            # SD boot partitions.
+            if not mount and ntype in ("part", "disk") and fstype in _MOUNTABLE_FSTYPES:
+                out.append({
+                    "device": f"/dev/{name}",
+                    "label": n.get("label") or name,
+                    "size": int(n.get("size") or 0),
+                    "fstype": fstype,
+                })
+            walk(children)
+
+    walk(data.get("blockdevices") or [])
+    return out
+
+
+def _mount_target_for(label: str, device: str) -> str:
+    """Pick /mnt/<label> when label is filesystem-safe, otherwise fall
+    back to the device basename so we never collide with another mount."""
+    safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in (label or "")).strip("-")
+    if not safe:
+        safe = os.path.basename(device.rstrip("/"))
+    return f"/mnt/{safe}"
+
+
+def mount_partition(device: str) -> tuple[str, str | None]:
+    """Mount a partition under /mnt/<label>. Returns (mountpoint, error).
+
+    Only allows devices that lsblk currently lists as unmounted with a
+    supported filesystem — the request body is never trusted directly."""
+    candidates = {d["device"]: d for d in unmounted_drives()}
+    info = candidates.get(device)
+    if not info:
+        return ("", "Device isn't attached, is already mounted, or has an "
+                    "unsupported filesystem.")
+    target = _mount_target_for(info["label"], device)
+    from .shell import sudo
+    mkdir = sudo("mkdir", "-p", target, timeout=5)
+    if not mkdir.ok:
+        return ("", mkdir.error or f"couldn't create {target}")
+    m = sudo("mount", device, target, timeout=20)
+    if not m.ok:
+        # Leave the empty dir behind — cheap to clean up manually and
+        # deleting on error can race a concurrent request.
+        return ("", m.error or f"mount failed for {device}")
+    return (target, None)
 
 
 def allowed_roots() -> list[dict]:

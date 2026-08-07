@@ -430,6 +430,8 @@ function Preview({ items, initialIndex, onClose }) {
 
 export default function FilesTab() {
   const [roots, setRoots] = useState(null)
+  const [unmounted, setUnmounted] = useState([])
+  const [mounting, setMounting] = useState(null)
   const [root, setRoot] = useState(null)
   const [path, setPath] = useState(null)
   const [listing, setListing] = useState(null)
@@ -450,16 +452,39 @@ export default function FilesTab() {
   const [query, setQuery] = useState('')
 
   useEffect(() => {
-    api('/files/roots')
-      .then((r) => {
-        setRoots(r.roots)
-        if (r.roots.length) {
-          setRoot(r.roots[0].path)
-          setPath(r.roots[0].path)
-        }
-      })
-      .catch((err) => setError(err.detail))
+    loadRoots(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  async function loadRoots(initial) {
+    try {
+      const r = await api('/files/roots')
+      setRoots(r.roots)
+      setUnmounted(r.unmounted || [])
+      if (initial && r.roots.length) {
+        setRoot(r.roots[0].path)
+        setPath(r.roots[0].path)
+      }
+    } catch (err) {
+      setError(err.detail)
+    }
+  }
+
+  async function mountDrive(dev) {
+    setMounting(dev)
+    try {
+      const r = await api('/files/mount', { method: 'POST', body: { device: dev } })
+      toast.ok(`Mounted at ${r.mountpoint}`)
+      await loadRoots(false)
+      // Jump to the newly-mounted root so the click has an obvious result.
+      setRoot(r.mountpoint)
+      setPath(r.mountpoint)
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setMounting(null)
+    }
+  }
 
   useEffect(() => {
     if (!path) return
@@ -662,11 +687,35 @@ export default function FilesTab() {
     return (
       <div className="stack">
         <Panel label="explorer" meta="attached drives">
-          <EmptyState>
-            No browseable location yet. Add a Samba share, create a RAID array on the Storage tab,
-            or mount a drive under <code>/mnt</code> or <code>/media</code> — anything mounted there
-            shows up automatically.
-          </EmptyState>
+          {unmounted.length > 0 ? (
+            <>
+              <div className="field-label group-label">Attached but not mounted</div>
+              <div className="unmounted-list">
+                {unmounted.map((u) => (
+                  <div key={u.device} className="unmounted-row">
+                    <div className="unmounted-main">
+                      <div className="mono">{u.label}</div>
+                      <div className="field-hint mono">
+                        {u.device} · {fmtBytes(u.size)} · {u.fstype.toUpperCase()}
+                      </div>
+                    </div>
+                    <Btn
+                      variant="primary"
+                      busy={mounting === u.device}
+                      onClick={() => mountDrive(u.device)}
+                    >
+                      Mount
+                    </Btn>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <EmptyState>
+              No browseable location yet. Add a Samba share, create a RAID array on the Storage tab,
+              or plug in a USB drive — attached drives show up here to mount with one click.
+            </EmptyState>
+          )}
         </Panel>
       </div>
     )
@@ -683,14 +732,20 @@ export default function FilesTab() {
         meta={roots?.find((r) => r.path === root)?.label || 'attached drives'}
         actions={
           <>
-            {roots && roots.length > 1 && (
+            {roots && (roots.length + unmounted.length) > 1 && (
               <select
                 className="input"
                 style={{ width: 'auto' }}
                 value={root || ''}
                 onChange={(e) => {
-                  setRoot(e.target.value)
-                  setPath(e.target.value)
+                  const val = e.target.value
+                  const un = unmounted.find((u) => `unmounted:${u.device}` === val)
+                  if (un) {
+                    mountDrive(un.device)
+                    return
+                  }
+                  setRoot(val)
+                  setPath(val)
                 }}
               >
                 {roots.map((r) => (
@@ -698,7 +753,19 @@ export default function FilesTab() {
                     {r.label}
                   </option>
                 ))}
+                {unmounted.length > 0 && (
+                  <optgroup label="attached (mount to browse)">
+                    {unmounted.map((u) => (
+                      <option key={u.device} value={`unmounted:${u.device}`}>
+                        {u.label} — {fmtBytes(u.size)} {u.fstype.toUpperCase()} · not mounted
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
+            )}
+            {mounting && (
+              <span className="field-hint">Mounting {mounting}…</span>
             )}
             <Btn onClick={() => setNewFolder((v) => !v)}>
               <Icon name="new-folder" /> New folder

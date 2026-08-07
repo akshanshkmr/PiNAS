@@ -136,11 +136,19 @@ async def upload(path: str = Form(...), files: list[UploadFile] = File(...)):
         raise HTTPException(status_code=400, detail="Upload target is not a folder.")
     saved = []
     for uf in files:
-        name = os.path.basename(uf.filename or "")
-        if not name or name in (".", ".."):
+        # `uf.filename` may carry a relative path when the browser is uploading
+        # a whole folder (webkitRelativePath preserved via FormData). Split so
+        # we can recreate intermediate dirs safely.
+        rel = (uf.filename or "").replace("\\", "/").lstrip("/")
+        parts = [p for p in rel.split("/") if p and p not in (".", "..")]
+        if not parts:
             continue
-        dest = target_dir / name
-        await asyncio.to_thread(_guard, filesvc.resolve, str(dest))  # keep it in-root
+        dest = target_dir.joinpath(*parts)
+        # Sandbox check first — resolve() rejects any path that would escape
+        # via .., a symlink, or an absolute drive letter. Do this BEFORE
+        # creating parent dirs so a bad name can't leave stray folders.
+        await asyncio.to_thread(_guard, filesvc.resolve, str(dest))
+        os.makedirs(dest.parent, exist_ok=True)
         try:
             with open(dest, "wb") as out:
                 while chunk := await uf.read(1024 * 1024):

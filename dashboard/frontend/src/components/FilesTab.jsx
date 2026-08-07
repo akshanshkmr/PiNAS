@@ -444,6 +444,7 @@ export default function FilesTab() {
   const [folderName, setFolderName] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(null)
   const fileInput = useRef(null)
+  const folderInput = useRef(null)
   // recursive folder sizes, computed lazily and cached across navigation
   const sizeCache = useRef(new Map())
   const [, bumpSizes] = useState(0)
@@ -617,7 +618,12 @@ export default function FilesTab() {
     // xhr.upload.onprogress, so we hand-roll the request.
     const form = new FormData()
     form.append('path', path)
-    for (const f of files) form.append('files', f)
+    for (const f of files) {
+      // webkitRelativePath is set when the input has `webkitdirectory` —
+      // pass it as the multipart filename so the server can recreate
+      // subdirectories. Single-file uploads fall back to `f.name`.
+      form.append('files', f, f.webkitRelativePath || f.name)
+    }
     const total = files.reduce((n, f) => n + f.size, 0)
     setUpProgress({ loaded: 0, total, rate: 0, files: files.length, done: 0 })
 
@@ -656,6 +662,7 @@ export default function FilesTab() {
       setUploading(false)
       setUpProgress(null)
       if (fileInput.current) fileInput.current.value = ''
+      if (folderInput.current) folderInput.current.value = ''
     }
   }
 
@@ -770,14 +777,27 @@ export default function FilesTab() {
             <Btn onClick={() => setNewFolder((v) => !v)}>
               <Icon name="new-folder" /> New folder
             </Btn>
+            <Btn onClick={() => folderInput.current?.click()} busy={uploading}>
+              <Icon name="upload" /> Upload folder
+            </Btn>
             <Btn variant="primary" onClick={() => fileInput.current?.click()} busy={uploading}>
-              <Icon name="upload" /> Upload
+              <Icon name="upload" /> Upload files
             </Btn>
             <input
               ref={fileInput}
               type="file"
               multiple
               hidden
+              onChange={(e) => upload([...e.target.files])}
+            />
+            <input
+              ref={folderInput}
+              type="file"
+              hidden
+              // Non-standard but supported in Chromium and WebKit; we still
+              // add the DOM-side attribute below for Chromium quirks.
+              webkitdirectory=""
+              directory=""
               onChange={(e) => upload([...e.target.files])}
             />
           </>

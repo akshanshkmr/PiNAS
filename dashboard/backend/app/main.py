@@ -4,13 +4,11 @@ Serves the JSON API under /api and the built React SPA at the site root.
 """
 
 import asyncio
-import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .routers import auth, backup, controls, files, nas, services, system, terminal
@@ -30,14 +28,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="PiNAS", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-
-
-@app.exception_handler(RequestValidationError)
-async def _log_validation(request: Request, exc: RequestValidationError):
-    logging.getLogger("uvicorn.error").warning(
-        "422 %s %s errors=%s", request.method, request.url.path, exc.errors()
-    )
-    return JSONResponse({"detail": exc.errors()}, status_code=422)
 
 for router in (
     auth.router,

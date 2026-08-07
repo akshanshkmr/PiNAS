@@ -1417,19 +1417,6 @@ input[type='range']:disabled {
 .bar-crit { background: var(--crit); }
 .bar-violet { background: var(--violet); }
 
-/* Indeterminate progress — used for uploads where we can't measure bytes-in-flight
-   (fetch() has no upload-progress event). A short blob sweeps left-to-right. */
-.bar-indeterminate { position: relative; }
-.bar-indeterminate .bar-fill {
-  width: 30%;
-  position: absolute;
-  animation: bar-indet 1.2s infinite ease-in-out;
-}
-@keyframes bar-indet {
-  0%   { left: -30%; }
-  100% { left: 100%; }
-}
-
 /* ============================================================
    NAS specifics
    ============================================================ */

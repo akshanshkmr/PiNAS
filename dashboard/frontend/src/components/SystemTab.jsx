@@ -7,27 +7,75 @@ import { Badge, Bar, Panel, severity } from './ui'
 // SMART data changes on a scale of hours/days — one probe up front and a
 // slow poll is plenty. Anything faster would waste smartctl syscalls.
 const HEALTH_POLL_MS = 5 * 60 * 1000
+const DRIVES_POLL_MS = 5 * 60 * 1000
 
-function HealthBanner() {
-  const [alerts, setAlerts] = useState(null)
-
+function usePoll(path, intervalMs) {
+  const [data, setData] = useState(null)
   useEffect(() => {
     let alive = true
     const load = async () => {
       try {
-        const r = await api('/system/health')
-        if (alive) setAlerts(r.alerts)
+        const r = await api(path)
+        if (alive) setData(r)
       } catch {
         /* transient — keep last known state */
       }
     }
     load()
-    const id = setInterval(load, HEALTH_POLL_MS)
-    return () => {
-      alive = false
-      clearInterval(id)
-    }
-  }, [])
+    const id = setInterval(load, intervalMs)
+    return () => { alive = false; clearInterval(id) }
+  }, [path, intervalMs])
+  return data
+}
+
+function fmtHours(h) {
+  if (h == null) return null
+  return h.toLocaleString('en-US') + ' h'
+}
+
+function StoragePanel() {
+  const data = usePoll('/nas/smart', DRIVES_POLL_MS)
+  const drives = data?.drives
+  if (!drives) return null
+  return (
+    <Panel label="storage vitals" meta={`${drives.length} drive${drives.length === 1 ? '' : 's'}`}>
+      <table className="table drives-table">
+        <thead>
+          <tr>
+            <th>device</th>
+            <th>health</th>
+            <th className="num">temp</th>
+            <th className="num">age</th>
+            <th>model</th>
+          </tr>
+        </thead>
+        <tbody>
+          {drives.map((d) => {
+            const dot = d.available === false
+              ? 'muted'
+              : d.health === 'failed'
+                ? 'crit'
+                : (d.warnings?.length ? 'warn' : 'ok')
+            const label = d.available === false ? 'unknown' : d.health
+            return (
+              <tr key={d.device}>
+                <td className="mono">{d.device}</td>
+                <td><Badge tone={dot}>{label}</Badge></td>
+                <td className="num mono">{d.temperature != null ? `${d.temperature} °C` : '—'}</td>
+                <td className="num mono tone-muted">{fmtHours(d.power_on_hours) || '—'}</td>
+                <td className="mono tone-muted">{d.model || '—'}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </Panel>
+  )
+}
+
+function HealthBanner() {
+  const data = usePoll('/system/health', HEALTH_POLL_MS)
+  const alerts = data?.alerts
 
   if (!alerts || alerts.length === 0) return null
 
@@ -143,6 +191,8 @@ export default function SystemTab({ stats }) {
           <div className="stat-hero-sub">{fmtBytes(stats.disk.free)} free</div>
         </Panel>
       </div>
+
+      <StoragePanel />
 
       <Panel label="processes" meta="top by cpu">
         <div className="table-scroll">

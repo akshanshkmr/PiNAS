@@ -279,6 +279,142 @@ body {
   text-shadow: 0 0 8px rgba(96, 165, 250, 0.35);
 }
 
+/* The whole footer row becomes the popup trigger. */
+.foot-user-btn {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 6px 8px;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  transition: background 0.14s, border-color 0.14s;
+}
+.foot-user-btn:hover,
+.foot-user-btn.is-open {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+.foot-user-chevron {
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 0.14s;
+}
+.foot-user-btn.is-open .foot-user-chevron {
+  transform: rotate(180deg);
+}
+
+/* Account popup — instrument-panel styling with corner ticks. */
+.account-popup {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(100% + 8px);
+  background: #0d1626;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 3px;
+  padding: 14px 14px 10px;
+  z-index: 20;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+  color: #dbe4f2;
+}
+.chassis-foot { position: relative; }
+.account-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.16);
+}
+.account-avatar-lg {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.14);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  color: #dbeafe;
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 8px rgba(96, 165, 250, 0.35);
+}
+.account-identity { min-width: 0; }
+.account-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.account-handle {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.account-meta {
+  padding: 10px 2px;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.16);
+}
+.account-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 3px 0;
+}
+.account-meta-key {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.account-meta-val {
+  font-size: 11px;
+  color: #dbe4f2;
+}
+.account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 8px;
+}
+.account-action {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: #dbe4f2;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  padding: 8px 6px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.14s;
+}
+.account-action:hover {
+  background: rgba(96, 165, 250, 0.08);
+}
+.account-signout {
+  color: #ff9b9b;
+}
+.account-signout:hover {
+  background: rgba(220, 60, 60, 0.10);
+}
+
+/* Drives table on the storage-vitals panel — reuse the existing .table
+   styles, just override numeric alignment for temp/hours cells. */
+.drives-table .num {
+  width: 90px;
+  white-space: nowrap;
+}
+
 .foot-greet {
   font-size: 11px;
   color: var(--muted);

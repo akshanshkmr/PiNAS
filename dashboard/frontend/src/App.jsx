@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   BrowserRouter,
   NavLink,
@@ -7,7 +7,8 @@ import {
   Routes,
   useLocation,
 } from 'react-router-dom'
-import { api } from './api'
+import { api, copyText } from './api'
+import { toast } from './toast'
 import { ToastHost } from './toast'
 import { SegMeter, severity } from './components/ui'
 import Login from './components/Login'
@@ -124,10 +125,99 @@ function initials(displayName) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
+function sessionRemaining(expiresAt) {
+  if (!expiresAt) return null
+  const secs = expiresAt - Math.floor(Date.now() / 1000)
+  if (secs <= 0) return 'expired'
+  const days = Math.floor(secs / 86400)
+  if (days >= 1) return `${days}d left`
+  const hours = Math.floor(secs / 3600)
+  if (hours >= 1) return `${hours}h left`
+  const mins = Math.max(1, Math.floor(secs / 60))
+  return `${mins}m left`
+}
+
+function AccountPopup({ user, avatar, display, onClose, onLogout }) {
+  // click-outside + Escape close
+  const boxRef = useRef(null)
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    const onDown = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    // pointerdown fires before click, so we run before the trigger's own click.
+    // Delay one tick so the click that opened us doesn't immediately close us.
+    const id = setTimeout(() => document.addEventListener('pointerdown', onDown), 0)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      clearTimeout(id)
+      document.removeEventListener('pointerdown', onDown)
+    }
+  }, [onClose])
+
+  async function copyDashUrl() {
+    if (await copyText(window.location.origin + '/')) {
+      toast.ok('Dashboard URL copied.')
+    } else {
+      toast.err('Couldn’t copy — grab it from the address bar.')
+    }
+    onClose()
+  }
+
+  return (
+    <div className="account-popup" ref={boxRef} role="menu">
+      <span className="tick tick-tl" aria-hidden="true" />
+      <span className="tick tick-tr" aria-hidden="true" />
+      <span className="tick tick-bl" aria-hidden="true" />
+      <span className="tick tick-br" aria-hidden="true" />
+      <div className="account-head">
+        <span className="account-avatar-lg mono" aria-hidden="true">{avatar}</span>
+        <div className="account-identity">
+          <div className="account-name">{display}</div>
+          <div className="account-handle mono">{user.username}</div>
+        </div>
+      </div>
+      <div className="account-meta">
+        {user.client_ip && (
+          <div className="account-meta-row">
+            <span className="account-meta-key">signed in from</span>
+            <span className="account-meta-val mono">{user.client_ip}</span>
+          </div>
+        )}
+        {user.session_expires_at && (
+          <div className="account-meta-row">
+            <span className="account-meta-key">session</span>
+            <span className="account-meta-val mono">{sessionRemaining(user.session_expires_at)}</span>
+          </div>
+        )}
+      </div>
+      <div className="account-actions">
+        <button className="account-action" onClick={copyDashUrl}>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="5" y="5" width="8" height="8" rx="1" />
+            <path d="M3 11V4a1 1 0 0 1 1-1h7" />
+          </svg>
+          Copy dashboard URL
+        </button>
+        <button className="account-action account-signout" onClick={onLogout}>
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h6" />
+            <polyline points="9 5.5 12 8 9 10.5" />
+            <line x1="12" y1="8" x2="6.5" y2="8" />
+          </svg>
+          Sign out
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Sidebar({ user, online, onLogout }) {
   const display = titleCase(user.name || user.username)
   const firstName = display.split(' ')[0]
   const avatar = initials(display)
+  const [open, setOpen] = useState(false)
   return (
     <aside className="chassis">
       <NavLink to="/system" className="chassis-brand">
@@ -154,16 +244,41 @@ function Sidebar({ user, online, onLogout }) {
       </nav>
 
       <div className="chassis-foot">
-        <div className="foot-user">
+        <button
+          className={`foot-user foot-user-btn ${open ? 'is-open' : ''}`}
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
           <span className="foot-avatar mono" aria-hidden="true">{avatar}</span>
           <div className="foot-user-lines">
             <span className="foot-greet">{greeting()},</span>
             <span className="foot-name">{firstName}</span>
           </div>
-        </div>
-        <button className="btn btn-ghost btn-block" onClick={onLogout}>
-          Sign out
+          <svg
+            className="foot-user-chevron"
+            viewBox="0 0 16 16"
+            width="12"
+            height="12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="4 6 8 10 12 6" />
+          </svg>
         </button>
+        {open && (
+          <AccountPopup
+            user={user}
+            display={display}
+            avatar={avatar}
+            onClose={() => setOpen(false)}
+            onLogout={() => { setOpen(false); onLogout() }}
+          />
+        )}
       </div>
     </aside>
   )
@@ -183,34 +298,21 @@ function TelemetryRail({ stats, stale }) {
   return (
     <div className={`rail ${stale ? 'is-stale' : ''}`}>
       {stats ? (
-        <>
-          {cells.map((c) => {
-            const sev = severity(c.value, c.low, c.high)
-            return (
-              <div className="rail-cell" key={c.key}>
-                <div className="rail-top">
-                  <span className="rail-label">{c.label}</span>
-                  <span className={`rail-value mono tone-${sev.tone}`}>
-                    {c.value.toFixed(1)}
-                    <span className="rail-unit">{c.unit}</span>
-                  </span>
-                </div>
-                <SegMeter value={c.value} max={c.max} tone={sev.tone} />
+        cells.map((c) => {
+          const sev = severity(c.value, c.low, c.high)
+          return (
+            <div className="rail-cell" key={c.key}>
+              <div className="rail-top">
+                <span className="rail-label">{c.label}</span>
+                <span className={`rail-value mono tone-${sev.tone}`}>
+                  {c.value.toFixed(1)}
+                  <span className="rail-unit">{c.unit}</span>
+                </span>
               </div>
-            )
-          })}
-          <div className="rail-cell rail-host">
-            <div className="rail-top">
-              <span className="rail-label">host</span>
-              <span className="rail-value-sm mono">{stats.hostname}</span>
+              <SegMeter value={c.value} max={c.max} tone={sev.tone} />
             </div>
-            <div className="rail-hostline mono">
-              <span>{stats.ip}</span>
-              <span className="dot-sep">·</span>
-              <span>up {stats.uptime}</span>
-            </div>
-          </div>
-        </>
+          )
+        })
       ) : (
         <div className="rail-boot mono">reading telemetry…</div>
       )}

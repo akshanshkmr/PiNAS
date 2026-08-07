@@ -65,8 +65,8 @@ def sign_session(username: str, name: str) -> str:
     return f"{payload}.{sig}"
 
 
-def verify_session(token: str | None) -> tuple[str, str] | None:
-    """Returns (username, display_name) for a valid unexpired token, else None."""
+def verify_session(token: str | None) -> tuple[str, str, int] | None:
+    """Returns (username, display_name, expires_at) for a valid unexpired token."""
     if not token or "." not in token:
         return None
     payload, _, sig = token.rpartition(".")
@@ -77,12 +77,13 @@ def verify_session(token: str | None) -> tuple[str, str] | None:
         data = json.loads(payload)
     except (json.JSONDecodeError, ValueError):
         return None
-    if data.get("exp", 0) < int(time.time()):
+    exp = int(data.get("exp") or 0)
+    if exp < int(time.time()):
         return None
     username = data.get("u")
     if not username:
         return None
-    return username, data.get("n") or username
+    return username, data.get("n") or username, exp
 
 
 def require_auth(request: Request) -> dict:
@@ -90,4 +91,4 @@ def require_auth(request: Request) -> dict:
     result = verify_session(request.cookies.get(SESSION_COOKIE))
     if not result:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return {"username": result[0], "name": result[1]}
+    return {"username": result[0], "name": result[1], "session_expires_at": result[2]}

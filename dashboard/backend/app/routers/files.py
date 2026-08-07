@@ -130,16 +130,24 @@ async def delete(body: PathBody):
 
 
 @router.post("/upload")
-async def upload(path: str = Form(...), files: list[UploadFile] = File(...)):
+async def upload(
+    path: str = Form(...),
+    files: list[UploadFile] = File(...),
+    # Optional parallel list of per-file relative paths (for folder uploads).
+    # Safari drops a multipart body when append()'s filename arg contains '/',
+    # so the client can't put webkitRelativePath in the multipart filename —
+    # it comes as a sibling field zipped to `files` by index.
+    relpaths: list[str] = Form(default=[]),
+):
     target_dir = await asyncio.to_thread(_guard, filesvc.resolve, path)
     if not target_dir.is_dir():
         raise HTTPException(status_code=400, detail="Upload target is not a folder.")
     saved = []
-    for uf in files:
-        # `uf.filename` may carry a relative path when the browser is uploading
-        # a whole folder (webkitRelativePath preserved via FormData). Split so
-        # we can recreate intermediate dirs safely.
-        rel = (uf.filename or "").replace("\\", "/").lstrip("/")
+    for i, uf in enumerate(files):
+        # Prefer the parallel relpath (folder uploads), fall back to the
+        # multipart filename (plain file uploads).
+        rel_raw = relpaths[i] if i < len(relpaths) and relpaths[i] else (uf.filename or "")
+        rel = rel_raw.replace("\\", "/").lstrip("/")
         parts = [p for p in rel.split("/") if p and p not in (".", "..")]
         if not parts:
             continue

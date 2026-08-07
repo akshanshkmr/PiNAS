@@ -619,10 +619,12 @@ export default function FilesTab() {
     const form = new FormData()
     form.append('path', path)
     for (const f of files) {
-      // webkitRelativePath is set when the input has `webkitdirectory` —
-      // pass it as the multipart filename so the server can recreate
-      // subdirectories. Single-file uploads fall back to `f.name`.
-      form.append('files', f, f.webkitRelativePath || f.name)
+      // Send each file with its plain leaf name and the relative path as
+      // a sibling form field. Safari's FormData silently drops the whole
+      // body when the third argument to append() contains '/', so we
+      // can't ship webkitRelativePath as the multipart filename directly.
+      form.append('files', f, f.name)
+      form.append('relpaths', f.webkitRelativePath || f.name)
     }
     const total = files.reduce((n, f) => n + f.size, 0)
     setUpProgress({ loaded: 0, total, rate: 0, files: files.length, done: 0 })

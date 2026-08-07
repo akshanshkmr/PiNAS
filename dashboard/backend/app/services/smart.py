@@ -5,12 +5,16 @@ failing disk on the NAS is visible before it takes data with it.
 """
 
 import json
+import shutil
 
 from .nas import list_disks
 from .shell import sudo
 
 # ATA SMART attribute ids we surface
 _ATA_ATTRS = {5: "reallocated", 197: "pending", 198: "uncorrectable"}
+
+_MISSING_MSG = ("smartmontools isn't installed. Run "
+                "`sudo apt install smartmontools` on the Pi.")
 
 
 def _attr_value(table, attr_id):
@@ -22,6 +26,8 @@ def _attr_value(table, attr_id):
 
 
 def _report_for(device, model_hint=None):
+    if shutil.which("smartctl") is None:
+        return {"device": device, "model": model_hint, "available": False, "error": _MISSING_MSG}
     # smartctl uses a bitmask exit code (nonzero even on benign warnings), so we
     # parse whatever JSON it produced regardless of the return code.
     res = sudo("smartctl", "-H", "-A", "-i", "-j", device, timeout=30)

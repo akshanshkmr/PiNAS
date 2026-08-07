@@ -147,10 +147,13 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     const onDown = (e) => {
-      if (boxRef.current && !boxRef.current.contains(e.target)) onClose()
+      if (boxRef.current?.contains(e.target)) return
+      // Let the trigger button toggle itself — otherwise pointerdown would
+      // close the popup, then the trigger's own click would re-open it.
+      if (e.target.closest?.('.foot-user-btn')) return
+      onClose()
     }
     window.addEventListener('keydown', onKey)
-    // pointerdown fires before click, so we run before the trigger's own click.
     // Delay one tick so the click that opened us doesn't immediately close us.
     const id = setTimeout(() => document.addEventListener('pointerdown', onDown), 0)
     return () => {

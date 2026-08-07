@@ -613,42 +613,54 @@ export default function FilesTab() {
   async function upload(files) {
     if (!files.length) return
     setUploading(true)
-    // fetch doesn't emit upload progress in browsers; XHR does via
-    // xhr.upload.onprogress, so we hand-roll the request.
-    const form = new FormData()
-    form.append('path', path)
-    for (const f of files) form.append('files', f)
+    // Each file is its own raw-body POST. Safari 26+ silently drops
+    // multipart bodies containing File entries (proven end-to-end with
+    // an Apache Content-Length log format showing 0 bytes in / 367 out).
+    // Raw XHR body takes a different browser code path and works.
     const total = files.reduce((n, f) => n + f.size, 0)
+    const totalDone = { bytes: 0 }
     setUpProgress({ loaded: 0, total, rate: 0, files: files.length, done: 0 })
+    const started = Date.now()
 
-    try {
-      const started = Date.now()
-      const data = await new Promise((resolve, reject) => {
+    async function sendOne(f, idx) {
+      const url = `/api/files/upload-raw?path=${encodeURIComponent(path)}&name=${encodeURIComponent(f.name)}`
+      return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest()
-        xhr.open('POST', '/api/files/upload', true)
+        xhr.open('POST', url, true)
         xhr.withCredentials = true
+        xhr.setRequestHeader('Content-Type', f.type || 'application/octet-stream')
         xhr.upload.onprogress = (e) => {
           if (!e.lengthComputable) return
           const secs = Math.max(0.1, (Date.now() - started) / 1000)
+          const loaded = totalDone.bytes + e.loaded
           setUpProgress({
-            loaded: e.loaded,
-            total: e.total,
-            rate: e.loaded / secs,
+            loaded, total,
+            rate: loaded / secs,
             files: files.length,
-            done: Math.min(files.length, Math.round((e.loaded / e.total) * files.length)),
+            done: idx + (e.loaded / e.total),
           })
         }
         xhr.onload = () => {
-          let body = {}
-          try { body = JSON.parse(xhr.responseText) } catch { /* not JSON */ }
-          if (xhr.status >= 200 && xhr.status < 300) resolve(body)
-          else reject(new Error(body.detail || `Upload failed (HTTP ${xhr.status})`))
+          if (xhr.status >= 200 && xhr.status < 300) resolve()
+          else {
+            let body = {}
+            try { body = JSON.parse(xhr.responseText) } catch { /* not JSON */ }
+            reject(new Error(body.detail || `${f.name}: HTTP ${xhr.status}`))
+          }
         }
-        xhr.onerror = () => reject(new Error('Network error during upload'))
-        xhr.onabort = () => reject(new Error('Upload cancelled'))
-        xhr.send(form)
+        xhr.onerror = () => reject(new Error(`${f.name}: network error`))
+        xhr.onabort = () => reject(new Error(`${f.name}: cancelled`))
+        // Raw body — the File object streams as the request body directly.
+        xhr.send(f)
       })
-      toast.ok(data.message || `Uploaded ${files.length} file(s)`)
+    }
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        await sendOne(files[i], i)
+        totalDone.bytes += files[i].size
+      }
+      toast.ok(`Uploaded ${files.length} file${files.length === 1 ? '' : 's'}`)
       refresh()
     } catch (err) {
       toast.err(err.message)

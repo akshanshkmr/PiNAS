@@ -3,7 +3,7 @@ import mimetypes
 import os
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
@@ -127,6 +127,31 @@ async def mkdir(body: MkdirBody):
 async def delete(body: PathBody):
     await asyncio.to_thread(_guard, filesvc.delete, body.path)
     return {"ok": True, "message": "Deleted."}
+
+
+@router.post("/upload-raw")
+async def upload_raw(request: Request, path: str = Query(...), name: str = Query(...)):
+    """Single-file upload where the request body IS the file — no
+    multipart/form-data. Newer Safari drops the body when the FormData
+    has File entries (proven with an Apache Content-Length log format
+    that logged 0 bytes for both XHR and fetch versions). Raw body
+    takes a completely different browser code path and works."""
+    target_dir = await asyncio.to_thread(_guard, filesvc.resolve, path)
+    if not target_dir.is_dir():
+        raise HTTPException(status_code=400, detail="Upload target is not a folder.")
+    safe = os.path.basename(name or "")
+    if not safe or safe in (".", ".."):
+        raise HTTPException(status_code=400, detail="Bad filename.")
+    dest = target_dir / safe
+    await asyncio.to_thread(_guard, filesvc.resolve, str(dest))
+    try:
+        with open(dest, "wb") as out:
+            async for chunk in request.stream():
+                if chunk:
+                    out.write(chunk)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Could not write {safe}: {e.strerror or e}")
+    return {"ok": True, "saved": safe}
 
 
 @router.post("/upload")

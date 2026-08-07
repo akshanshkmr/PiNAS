@@ -115,8 +115,19 @@ function titleCase(s) {
   return s.replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+function initials(displayName) {
+  // "Akshansh" -> "AK", "Akshansh Kumar" -> "AK". Fall back to "?" so we never
+  // render an empty circle even if the gecos field is oddly shaped.
+  const parts = displayName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
 function Sidebar({ user, online, onLogout }) {
-  const firstName = titleCase((user.name || user.username).split(' ')[0])
+  const display = titleCase(user.name || user.username)
+  const firstName = display.split(' ')[0]
+  const avatar = initials(display)
   return (
     <aside className="chassis">
       <NavLink to="/system" className="chassis-brand">
@@ -144,8 +155,11 @@ function Sidebar({ user, online, onLogout }) {
 
       <div className="chassis-foot">
         <div className="foot-user">
-          <span className="foot-greet">{greeting()},</span>
-          <span className="foot-name">{firstName}</span>
+          <span className="foot-avatar mono" aria-hidden="true">{avatar}</span>
+          <div className="foot-user-lines">
+            <span className="foot-greet">{greeting()},</span>
+            <span className="foot-name">{firstName}</span>
+          </div>
         </div>
         <button className="btn btn-ghost btn-block" onClick={onLogout}>
           Sign out

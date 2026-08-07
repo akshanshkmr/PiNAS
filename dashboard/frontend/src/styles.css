@@ -251,9 +251,32 @@ body {
 
 .foot-user {
   display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 2px;
+}
+
+.foot-user-lines {
+  display: flex;
   flex-direction: column;
   gap: 1px;
-  padding-left: 2px;
+  min-width: 0;
+}
+
+.foot-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  background: rgba(96, 165, 250, 0.14);
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 8px rgba(96, 165, 250, 0.35);
 }
 
 .foot-greet {
@@ -2729,9 +2752,19 @@ svg.file-glyph {
     gap: 14px;
   }
   .foot-user {
+    align-items: center;
+    gap: 8px;
+  }
+  .foot-user-lines {
     flex-direction: row;
     align-items: baseline;
     gap: 6px;
+  }
+  .foot-avatar {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+    font-size: 11px;
   }
   .foot-name {
     font-size: 14px;

@@ -6,12 +6,14 @@ those roots, so requests can't escape via `..` or symlinks.
 """
 
 import io
+import json
 import os
 import shutil
 import zipfile
 from pathlib import Path
 
 from . import nas
+from .shell import run
 
 # HEIC/HEIF can't be decoded by browsers, so we transcode to JPEG on the fly.
 try:
@@ -49,8 +51,47 @@ def _kind(path: Path) -> str:
     return "file"
 
 
+_ATTACHED_ROOT_PREFIXES = ("/mnt/", "/media/", "/run/media/")
+
+
+def _attached_drive_mounts() -> list[tuple[str, str]]:
+    """Every real filesystem mounted under /mnt, /media, or /run/media —
+    the Linux conventions for user-visible external / removable drives.
+
+    Uses `findmnt -J` so paths with spaces or unicode survive intact.
+    Yields (label, mountpoint) pairs; label prefers the drive's own label
+    when it has one, falling back to the mount folder name."""
+    res = run("findmnt", "-J", "-b", "-o",
+              "TARGET,SOURCE,FSTYPE,LABEL", timeout=8)
+    if not res.ok or not res.output:
+        return []
+    try:
+        data = json.loads(res.output)
+    except json.JSONDecodeError:
+        return []
+
+    out: list[tuple[str, str]] = []
+
+    def walk(nodes):
+        for n in nodes or []:
+            target = n.get("target") or ""
+            fstype = (n.get("fstype") or "").lower()
+            # Only real filesystems the user can browse — no tmpfs/proc/etc.
+            if target.startswith(_ATTACHED_ROOT_PREFIXES) and fstype and fstype not in (
+                "tmpfs", "devtmpfs", "autofs", "overlay", "squashfs", "binfmt_misc",
+            ):
+                label = n.get("label") or os.path.basename(target.rstrip("/")) or target
+                out.append((label, target))
+            walk(n.get("children"))
+
+    walk(data.get("filesystems") or [])
+    return out
+
+
 def allowed_roots() -> list[dict]:
-    """Browseable roots: Samba shares + mounted arrays + the default mount."""
+    """Browseable roots — Samba shares, mounted RAID arrays, the default
+    NAS mount, plus every external / removable drive attached under
+    /mnt, /media, or /run/media."""
     seen: dict[str, str] = {}
 
     def add(label: str, path: str):
@@ -67,6 +108,8 @@ def allowed_roots() -> list[dict]:
         if array.get("mountpoint"):
             add(array["name"], array["mountpoint"])
     add("nas", nas.DEFAULT_MOUNTPOINT)
+    for label, path in _attached_drive_mounts():
+        add(label, path)
 
     return [{"label": label, "path": path} for path, label in seen.items()]
 

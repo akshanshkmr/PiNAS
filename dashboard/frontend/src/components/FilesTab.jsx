@@ -661,10 +661,11 @@ export default function FilesTab() {
   if (roots && roots.length === 0) {
     return (
       <div className="stack">
-        <Panel label="files" meta="nas">
+        <Panel label="explorer" meta="attached drives">
           <EmptyState>
-            No NAS location yet. Create a RAID array or add a Samba share on the Storage tab, then your files show up
-            here.
+            No browseable location yet. Add a Samba share, create a RAID array on the Storage tab,
+            or mount a drive under <code>/mnt</code> or <code>/media</code> — anything mounted there
+            shows up automatically.
           </EmptyState>
         </Panel>
       </div>
@@ -678,8 +679,8 @@ export default function FilesTab() {
   return (
     <div className="stack">
       <Panel
-        label="files"
-        meta="nas"
+        label="explorer"
+        meta={roots?.find((r) => r.path === root)?.label || 'attached drives'}
         actions={
           <>
             {roots && roots.length > 1 && (

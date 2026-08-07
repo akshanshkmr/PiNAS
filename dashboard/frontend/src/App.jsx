@@ -23,7 +23,7 @@ import ControlsTab from './components/ControlsTab'
 const TABS = [
   { id: 'system',   label: 'System',   sub: 'live telemetry · every second',       path: '/system',   component: SystemTab },
   { id: 'nas',      label: 'Storage',  sub: 'raid · samba shares · smart health', path: '/storage',  component: NasTab },
-  { id: 'files',    label: 'Files',    sub: 'browse · upload · preview',          path: '/files',    component: FilesTab },
+  { id: 'files',    label: 'Explorer', sub: 'browse every attached drive',        path: '/files',    component: FilesTab },
   { id: 'network',  label: 'Network',  sub: 'lan · tailscale · funnel · vpn',     path: '/network',  component: NetworkTab },
   { id: 'services', label: 'Services', sub: 'systemd units',                      path: '/services', component: ServicesTab },
   { id: 'terminal', label: 'Terminal', sub: 'bash login shell',                   path: '/terminal', component: TerminalTab },

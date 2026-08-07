@@ -83,7 +83,5 @@ def logout(response: Response):
 
 
 @router.get("/me")
-def me(request: Request, user: dict = Depends(require_auth)):
-    # Surface the client IP so the avatar popup can show "signed in from …"
-    # — helps distinguish tailnet (100.x) from LAN (192.168.x) sessions.
-    return {**user, "client_ip": _client_ip(request)}
+def me(user: dict = Depends(require_auth)):
+    return user

@@ -199,12 +199,6 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
         </div>
       </div>
       <div className="account-meta">
-        {user.client_ip && (
-          <div className="account-meta-row">
-            <span className="account-meta-key">signed in from</span>
-            <span className="account-meta-val mono">{user.client_ip}</span>
-          </div>
-        )}
         {user.session_expires_at && (
           <div className="account-meta-row">
             <span className="account-meta-key">session</span>

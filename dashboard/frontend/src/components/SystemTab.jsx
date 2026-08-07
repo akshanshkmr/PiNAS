@@ -1,6 +1,57 @@
-import { fmtBytes, fmtCount } from '../api'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { api, fmtBytes, fmtCount } from '../api'
 import Sparkline from './Sparkline'
 import { Badge, Bar, Panel, severity } from './ui'
+
+// SMART data changes on a scale of hours/days — one probe up front and a
+// slow poll is plenty. Anything faster would waste smartctl syscalls.
+const HEALTH_POLL_MS = 5 * 60 * 1000
+
+function HealthBanner() {
+  const [alerts, setAlerts] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const r = await api('/system/health')
+        if (alive) setAlerts(r.alerts)
+      } catch {
+        /* transient — keep last known state */
+      }
+    }
+    load()
+    const id = setInterval(load, HEALTH_POLL_MS)
+    return () => {
+      alive = false
+      clearInterval(id)
+    }
+  }, [])
+
+  if (!alerts || alerts.length === 0) return null
+
+  const worstCrit = alerts.some((a) => a.severity === 'crit')
+  return (
+    <div className={`health-banner ${worstCrit ? 'is-crit' : 'is-warn'}`}>
+      <span className="health-banner-glyph" aria-hidden="true">!</span>
+      <div className="health-banner-body">
+        <div className="health-banner-title mono">
+          {worstCrit ? 'drive failure detected' : 'drive attention needed'}
+        </div>
+        {alerts.map((a) => (
+          <div key={a.device} className="health-banner-row">
+            <span className="mono">{a.device}</span>
+            <span className="health-banner-reason">{a.reason}</span>
+          </div>
+        ))}
+      </div>
+      <Link to="/storage" className="health-banner-cta mono">
+        Open Storage →
+      </Link>
+    </div>
+  )
+}
 
 function TrendPanel({ label, value, unit, history, low, high, max = 100 }) {
   const sev = severity(value, low, high)
@@ -33,6 +84,7 @@ export default function SystemTab({ stats }) {
 
   return (
     <div className="stack">
+      <HealthBanner />
       <div className="grid grid-3">
         <TrendPanel label="cpu load · 5m" value={stats.cpu} unit="%" history={stats.history.cpu} low={30} high={80} />
         <TrendPanel label="memory · 5m" value={stats.ram} unit="%" history={stats.history.ram} low={30} high={80} />

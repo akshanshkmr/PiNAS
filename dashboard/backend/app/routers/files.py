@@ -130,41 +130,24 @@ async def delete(body: PathBody):
 
 
 @router.post("/upload")
-async def upload(
-    path: str = Form(...),
-    files: list[UploadFile] = File(...),
-    # Optional parallel list of per-file relative paths (for folder uploads).
-    # Safari drops a multipart body when append()'s filename arg contains '/',
-    # so the client can't put webkitRelativePath in the multipart filename —
-    # it comes as a sibling field zipped to `files` by index.
-    relpaths: list[str] = Form(default=[]),
-):
+async def upload(path: str = Form(...), files: list[UploadFile] = File(...)):
     target_dir = await asyncio.to_thread(_guard, filesvc.resolve, path)
     if not target_dir.is_dir():
         raise HTTPException(status_code=400, detail="Upload target is not a folder.")
     saved = []
-    for i, uf in enumerate(files):
-        # Prefer the parallel relpath (folder uploads), fall back to the
-        # multipart filename (plain file uploads).
-        rel_raw = relpaths[i] if i < len(relpaths) and relpaths[i] else (uf.filename or "")
-        rel = rel_raw.replace("\\", "/").lstrip("/")
-        parts = [p for p in rel.split("/") if p and p not in (".", "..")]
-        if not parts:
+    for uf in files:
+        name = os.path.basename(uf.filename or "")
+        if not name or name in (".", ".."):
             continue
-        dest = target_dir.joinpath(*parts)
-        # Sandbox check first — resolve() rejects any path that would escape
-        # via .., a symlink, or an absolute drive letter. Do this BEFORE
-        # creating parent dirs so a bad name can't leave stray folders.
-        await asyncio.to_thread(_guard, filesvc.resolve, str(dest))
-        os.makedirs(dest.parent, exist_ok=True)
-        rel_str = "/".join(parts)
+        dest = target_dir / name
+        await asyncio.to_thread(_guard, filesvc.resolve, str(dest))  # keep it in-root
         try:
             with open(dest, "wb") as out:
                 while chunk := await uf.read(1024 * 1024):
                     out.write(chunk)
         except OSError as e:
-            raise HTTPException(status_code=500, detail=f"Could not write {rel_str}: {e.strerror or e}")
-        saved.append(rel_str)
+            raise HTTPException(status_code=500, detail=f"Could not write {name}: {e.strerror or e}")
+        saved.append(name)
     if not saved:
         raise HTTPException(status_code=400, detail="No valid files in the upload.")
     return {"ok": True, "saved": saved, "message": f"Uploaded {len(saved)} file(s)."}

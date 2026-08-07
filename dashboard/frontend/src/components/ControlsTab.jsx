@@ -297,6 +297,7 @@ function PowerCard() {
   const [pending, setPending] = useState(null) // 'reboot' | 'shutdown' | null
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
+  const [restarting, setRestarting] = useState(false)
   const word = pending === 'reboot' ? 'REBOOT' : 'SHUTDOWN'
 
   function choose(action) {
@@ -318,15 +319,30 @@ function PowerCard() {
     }
   }
 
+  async function restartDashboard() {
+    setRestarting(true)
+    try {
+      await api('/system/restart', { method: 'POST' })
+      toast.ok('Dashboard restarting…')
+    } catch (err) {
+      toast.err(err.detail)
+    } finally {
+      setRestarting(false)
+    }
+  }
+
   return (
     <Panel label="power" actions={<Badge tone="crit">danger zone</Badge>}>
-      <p className="field-hint">Both actions disconnect every active session immediately.</p>
+      <p className="field-hint">Reboot / shut down affects the whole Pi. Restart dashboard only bounces this web service.</p>
       <div className="btn-row">
         <Btn variant={pending === 'reboot' ? 'primary' : 'default'} onClick={() => choose('reboot')}>
           Reboot…
         </Btn>
         <Btn variant={pending === 'shutdown' ? 'primary' : 'default'} onClick={() => choose('shutdown')}>
           Shut down…
+        </Btn>
+        <Btn variant="ghost" busy={restarting} onClick={restartDashboard}>
+          Restart dashboard
         </Btn>
       </div>
       {pending && (

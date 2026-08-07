@@ -426,35 +426,17 @@ body {
 .account-signout:hover {
   background: rgba(220, 60, 60, 0.10);
 }
-.account-meta-link {
-  color: #7fb3ff;
+/* A whole meta row becomes a link — e.g. version -> commit page. */
+.account-meta-row-link {
   text-decoration: none;
-  border-bottom: 1px dotted rgba(127, 179, 255, 0.4);
+  color: inherit;
+  border-radius: 2px;
+  transition: background 0.14s;
+  padding: 3px 4px;
+  margin: 0 -4px;
 }
-.account-meta-link:hover {
-  color: #a7c9ff;
-}
-.account-confirm {
-  padding: 6px 6px 4px;
-  border-top: 1px solid rgba(96, 165, 250, 0.16);
-  margin-top: 4px;
-}
-.account-confirm > .mono {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  padding: 4px 0 6px;
-}
-.account-confirm-btns {
-  display: flex;
-  gap: 4px;
-}
-.account-confirm-btns .account-action {
-  flex: 1;
-  padding: 8px 4px;
-  justify-content: center;
-  border: 1px solid rgba(96, 165, 250, 0.28);
-}
+.account-meta-row-link:hover { background: rgba(96, 165, 250, 0.08); }
+.account-meta-chevron { color: var(--muted); margin-left: 4px; }
 
 /* Drives table on the storage-vitals panel — reuse the existing .table
    styles, just override numeric alignment for temp/hours cells. */

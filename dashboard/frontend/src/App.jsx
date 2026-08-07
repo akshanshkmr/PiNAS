@@ -7,8 +7,7 @@ import {
   Routes,
   useLocation,
 } from 'react-router-dom'
-import { api, copyText } from './api'
-import { toast } from './toast'
+import { api } from './api'
 import { ToastHost } from './toast'
 import { SegMeter, severity } from './components/ui'
 import Login from './components/Login'
@@ -137,11 +136,9 @@ function sessionRemaining(expiresAt) {
   return `${mins}m left`
 }
 
-function AccountPopup({ user, avatar, display, onClose, onLogout }) {
+function AccountPopup({ user, stats, avatar, display, onClose, onLogout }) {
   const boxRef = useRef(null)
   const [version, setVersion] = useState(null)
-  const [confirmRestart, setConfirmRestart] = useState(false)
-  const [restarting, setRestarting] = useState(false)
 
   // click-outside + Escape close
   useEffect(() => {
@@ -167,26 +164,9 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
     api('/system/version').then(setVersion).catch(() => {})
   }, [])
 
-  async function copyDashUrl() {
-    if (await copyText(window.location.origin + '/')) {
-      toast.ok('Dashboard URL copied.')
-    } else {
-      toast.err('Couldn’t copy — grab it from the address bar.')
-    }
-    onClose()
-  }
-
-  async function restart() {
-    setRestarting(true)
-    try {
-      await api('/system/restart', { method: 'POST' })
-      toast.ok('Dashboard restarting…')
-      onClose()
-    } catch (err) {
-      toast.err(err.detail)
-      setRestarting(false)
-    }
-  }
+  const versionHref = version
+    ? `${version.repo_url}/commit/${version.commit}`
+    : 'https://github.com/akshanshkmr/PiNAS'
 
   return (
     <div className="account-popup" ref={boxRef} role="menu">
@@ -198,82 +178,39 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
         <span className="account-avatar-lg mono" aria-hidden="true">{avatar}</span>
         <div className="account-identity">
           <div className="account-name">{display}</div>
-          <div className="account-handle mono">{user.username}</div>
+          <div className="account-handle mono">
+            {user.username}{stats?.hostname ? ` @ ${stats.hostname}` : ''}
+          </div>
         </div>
       </div>
       <div className="account-meta">
+        {stats?.uptime && (
+          <div className="account-meta-row">
+            <span className="account-meta-key">uptime</span>
+            <span className="account-meta-val mono">{stats.uptime}</span>
+          </div>
+        )}
         {user.session_expires_at && (
           <div className="account-meta-row">
             <span className="account-meta-key">session</span>
             <span className="account-meta-val mono">{sessionRemaining(user.session_expires_at)}</span>
           </div>
         )}
-        {version && (
-          <div className="account-meta-row">
-            <span className="account-meta-key">version</span>
-            <a
-              className="account-meta-val mono account-meta-link"
-              href={`${version.repo_url}/commit/${version.commit}`}
-              target="_blank"
-              rel="noopener"
-              title={version.committed_at || ''}
-            >
-              {version.commit}
-            </a>
-          </div>
-        )}
-      </div>
-      <div className="account-actions">
-        <button className="account-action" onClick={copyDashUrl}>
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <rect x="5" y="5" width="8" height="8" rx="1" />
-            <path d="M3 11V4a1 1 0 0 1 1-1h7" />
-          </svg>
-          Copy dashboard URL
-        </button>
         <a
-          className="account-action"
-          href={version?.repo_url || 'https://github.com/akshanshkmr/PiNAS'}
+          className="account-meta-row account-meta-row-link"
+          href={versionHref}
           target="_blank"
           rel="noopener"
-          onClick={onClose}
+          title={version?.committed_at || 'View on GitHub'}
         >
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M6.5 12H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-            <path d="M9.5 4H11a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-1.5"/>
-            <line x1="5.5" y1="8" x2="10.5" y2="8"/>
-          </svg>
-          View on GitHub
+          <span className="account-meta-key">version</span>
+          <span className="account-meta-val mono">
+            {version?.commit || '…'}
+            <span className="account-meta-chevron" aria-hidden="true"> ↗</span>
+          </span>
         </a>
-        {confirmRestart ? (
-          <div className="account-confirm">
-            <span className="mono">Restart the dashboard?</span>
-            <div className="account-confirm-btns">
-              <button
-                className="account-action account-signout"
-                onClick={restart}
-                disabled={restarting}
-              >
-                {restarting ? 'Restarting…' : 'Yes, restart'}
-              </button>
-              <button
-                className="account-action"
-                onClick={() => setConfirmRestart(false)}
-                disabled={restarting}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button className="account-action" onClick={() => setConfirmRestart(true)}>
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M13.5 4.5v3h-3"/>
-              <path d="M13 6.5A5.5 5.5 0 1 0 14 10.5"/>
-            </svg>
-            Restart dashboard
-          </button>
-        )}
+      </div>
+      <div className="account-actions">
         <button className="account-action account-signout" onClick={onLogout}>
           <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M10 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h6" />
@@ -286,8 +223,7 @@ function AccountPopup({ user, avatar, display, onClose, onLogout }) {
     </div>
   )
 }
-
-function Sidebar({ user, online, onLogout }) {
+function Sidebar({ user, stats, online, onLogout }) {
   const display = titleCase(user.name || user.username)
   const firstName = display.split(' ')[0]
   const avatar = initials(display)
@@ -347,6 +283,7 @@ function Sidebar({ user, online, onLogout }) {
         {open && (
           <AccountPopup
             user={user}
+            stats={stats}
             display={display}
             avatar={avatar}
             onClose={() => setOpen(false)}
@@ -399,7 +336,7 @@ function Workspace({ user, stats, stale, onLogout }) {
   const active = TABS.find((t) => t.path === loc.pathname) || TABS[0]
   return (
     <div className="app">
-      <Sidebar user={user} online={!stale && !!stats} onLogout={onLogout} />
+      <Sidebar user={user} stats={stats} online={!stale && !!stats} onLogout={onLogout} />
       <div className="workspace">
         <TelemetryRail stats={stats} stale={stale} />
         <main className="panel-area" key={loc.pathname}>

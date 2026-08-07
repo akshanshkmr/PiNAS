@@ -2,7 +2,7 @@
 
 import json
 
-from .shell import CmdResult, sudo
+from .shell import CmdResult, run, sudo
 
 FAN_MODES = ["Always On", "Performance", "Cool", "Balanced", "Quiet"]
 RGB_STYLES = ["solid", "breathing", "flow", "flow_reverse", "rainbow", "rainbow_reverse", "hue_cycle"]

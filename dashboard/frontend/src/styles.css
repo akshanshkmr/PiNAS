@@ -306,16 +306,19 @@ body {
   transform: rotate(180deg);
 }
 
-/* Account popup — instrument-panel styling with corner ticks. */
+/* Account popup — spans the same width as the trigger button below and
+   pads to the same horizontal offset so the avatar in the head lands
+   directly above the trigger's avatar. Trigger has padding: 6px 8px, so
+   we match with 10px 8px here (extra vertical for the taller popup). */
 .account-popup {
   position: absolute;
-  left: 12px;
-  right: 12px;
+  left: 0;
+  right: 0;
   bottom: calc(100% + 8px);
   background: #0d1626;
   border: 1px solid rgba(96, 165, 250, 0.45);
-  border-radius: 3px;
-  padding: 14px 14px 10px;
+  border-radius: 4px;
+  padding: 10px 8px;
   z-index: 20;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   color: #dbe4f2;

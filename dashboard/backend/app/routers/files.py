@@ -149,13 +149,14 @@ async def upload(path: str = Form(...), files: list[UploadFile] = File(...)):
         # creating parent dirs so a bad name can't leave stray folders.
         await asyncio.to_thread(_guard, filesvc.resolve, str(dest))
         os.makedirs(dest.parent, exist_ok=True)
+        rel_str = "/".join(parts)
         try:
             with open(dest, "wb") as out:
                 while chunk := await uf.read(1024 * 1024):
                     out.write(chunk)
         except OSError as e:
-            raise HTTPException(status_code=500, detail=f"Could not write {name}: {e.strerror or e}")
-        saved.append(name)
+            raise HTTPException(status_code=500, detail=f"Could not write {rel_str}: {e.strerror or e}")
+        saved.append(rel_str)
     if not saved:
         raise HTTPException(status_code=400, detail="No valid files in the upload.")
     return {"ok": True, "saved": saved, "message": f"Uploaded {len(saved)} file(s)."}
